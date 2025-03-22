@@ -1,0 +1,41 @@
+{
+  "name": "client",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "serve": "vue-cli-service serve",
+    "build": "vue-cli-service build",
+    "watch": "vue-cli-service build --watch"
+  },
+  "dependencies": {
+    "assert": "^2.1.0",
+    "axios": "^0.21.4",
+    "bootstrap": "^5.3.3",
+    "bootstrap-vue": "^2.23.1",
+    "browserify-zlib": "^0.2.0",
+    "core-js": "^3.8.3",
+    "crypto-browserify": "^3.12.1",
+    "https-browserify": "^1.0.0",
+    "path-browserify": "^1.0.1",
+    "readable-stream": "^4.7.0",
+    "stream-browserify": "^3.0.0",
+    "stream-http": "^3.2.0",
+    "toastr": "^2.1.4",
+    "url": "^0.11.4",
+    "util": "^0.12.5",
+    "vue": "^3.4.27",
+    "vue-chat-scroll": "^1.3.1",
+    "vue-pusher": "^1.1.0",
+    "vue-router": "^4.2.4",
+    "vue-toastification": "^2.0.0-rc.5",
+    "vue-toastr": "^2.1.2",
+    "vue3-toastify": "^0.1.11",
+    "vuex": "^4.1.0"
+  },
+  "devDependencies": {
+    "@vue/cli-plugin-babel": "~5.0.0",
+    "@vue/cli-service": "~5.0.0",
+    "laravel-echo": "^1.15.3",
+    "pusher-js": "^8.3.0"
+  }
+}
