@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\ChatController;
+use BeyondCode\LaravelWebSockets\Facades\WebSocketsRouter;
 use Illuminate\Support\Facades\Route;
 use Tymon\JWTAuth\Contracts\Providers\Auth;
 
@@ -15,6 +16,4 @@ use Tymon\JWTAuth\Contracts\Providers\Auth;
 |
 */
 //
-//Route::get('/', function () {
-//    return view('welcome');
-//});
+//WebSocketsRouter::webSocket('/app/{appKey}', \BeyondCode\LaravelWebSockets\Server\WebSocketHandler::class);

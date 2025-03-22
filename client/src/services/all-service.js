@@ -37,6 +37,24 @@ export default class AllServiceService {
             throw error;
         }
     }
+    async getUser(){
+        try {
+            const response = await this.http.get(`/me`);
+            return response.data;
+        } catch (error) {
+            console.error('Error fetching user data:', error.response?.data || error.message);
+            throw error;
+        }
+    }
+    async getMessage(query) {
+        try {
+            const response = await this.http.get(`/chat/${query}`);
+            return response.data;
+        } catch (error) {
+            console.error('Error fetching user data:', error.response?.data || error.message);
+            throw error;
+        }
+    }
 
     async sendMessages(value) {
         try {

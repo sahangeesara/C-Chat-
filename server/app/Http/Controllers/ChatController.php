@@ -11,22 +11,28 @@ use Illuminate\Support\Facades\Log;
 
 class ChatController extends Controller
 {
-    public function chat(){
-
+    public function chat($id)
+    {
         try {
-            $message = Message::with('user')
-                ->where('is_active',1)
-                ->orderBy('created_at',"DESC")
+            $authUserId = Auth::id(); // Get authenticated user ID
+
+            // Fetch messages where auth user is either sender or receiver
+            $messages = Message::with('user')
+                ->where(function ($query) use ($authUserId, $id) {
+                    $query->where('from_id', $authUserId)->where('to_id', $id)
+                        ->orWhere('from_id', $id)->where('to_id', $authUserId);
+                })
+                ->orderBy('created_at', "ASC") // Order by oldest to newest
                 ->get();
 
-            return response()->json($customers);
+            return response()->json(['messages' => $messages], 200);
         } catch (\Exception $e) {
-            // Log the error and return an appropriate response
             Log::error($e->getMessage());
-            return response()->json(['message' => 'An error occurred while retrieving customer.'], 500);
+            return response()->json(['message' => 'An error occurred while retrieving messages.'], 500);
         }
-
     }
+
+
     public function send(Request $request)
     {
         $request->validate([

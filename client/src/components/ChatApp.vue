@@ -3,8 +3,8 @@
     <div class="row">
       <!-- Sidebar -->
       <div class="col-4 pe-0">
-        <nav class="nav flex-column bg-light" style="height: 761px !important">
-          <h1>Main Menu</h1>
+        <nav class="nav flex-column bg-light" style="height: 761px !important;">
+          <h1>Chat</h1>
           <form>
             <div class="input-group mt-3 mx-2" style="width: 380px;">
               <input
@@ -22,7 +22,7 @@
 
           <!-- User List -->
           <div v-for="user in userView" :key="user.id">
-            <button class="btn btn-outline-primary w-100 mt-3" @click="getMessage(user.id)">
+            <button class="btn btn-outline-primary mt-3 but" @click="getUser(user.id)">
               {{ user.name }}
             </button>
           </div>
@@ -38,12 +38,16 @@
 
       <!-- Chat Window -->
       <div class="col-8 p-lg-0">
-        <h3 class="list-group-item active bg-light text-primary border-0">Chat App</h3>
+        <h3 class="list-group-item active bg-light text-primary border-0">Ch-Chat</h3>
 
-        <ul class="list-group chat-container" ref="chatContainer">
-          <chat v-for="(msg, index) in chat.messages" :key="index">
-            {{ msg }}
-          </chat>
+        <ul class="list-group chat-container" ref="chatContainer"    style="background-color: #5dee5d">
+          <chat
+              v-for="(msg, index) in chat.messages"
+              :key="index"
+              :senderId="msg.from_id"
+              :currentUserId="currentUserId"
+              :body="msg.body"
+          />
         </ul>
 
         <!-- Message Input -->
@@ -53,7 +57,7 @@
             class="form-control"
             placeholder="Type your Message..."
             v-model="message"
-            @keyup.enter="send"
+            @keyup.enter="sendMessage"
           />
           <button class="btn btn-outline-secondary" @click="sendMessage">
             <i class="bi bi-send-fill"></i>
@@ -86,6 +90,7 @@ export default {
     const chat = ref({ messages: [] });
     const searchQuery = ref('');
     const selectedUserId = ref(null);
+    let currentUserId = ref(null);
 
     const store = useStore();
     const token = computed(() => store.getters.getToken);
@@ -113,6 +118,21 @@ export default {
       }
     };
 
+// Fetch authenticated user ID
+    const fetchUserId = async () => {
+      try {
+        const response = await allService.getUser();
+
+        if (response && response.user && response.user.id) {
+          currentUserId.value = response.user.id; // ✅ Correct way to update ref
+
+        } else {
+          console.warn("No user ID found in response.");
+        }
+      } catch (error) {
+        console.error("Error fetching user:", error);
+      }
+    };
 
     // Send message
     const sendMessage = async () => {
@@ -150,16 +170,34 @@ export default {
       await fetchUserData(searchQuery.value);
     };
 
-    const getMessage = (user_id) => {
+    const getUser = (user_id) => {
       selectedUserId.value = user_id;
-
+      getMessage(selectedUserId.value);
     };
+    const getMessage = async (selectedUserId) => {
+      try {
+        const response = await allService.getMessage(selectedUserId);
+
+        if (response && response.messages && response.messages.length > 0) {
+          chat.value.messages = []; // Clear previous messages
+          for (let i = 0; i < response.messages.length; i++) {
+            chat.value.messages.push(response.messages[i]);
+          }
+        } else {
+          console.warn("No messages found.");
+        }
+      } catch (error) {
+        console.error("Error fetching messages:", error);
+      }
+    };
+
 
     // Scroll to bottom
     onMounted(() => {
       if (chatContainer.value) {
         console.log('Chat container mounted');
         scrollToBottom();
+        fetchUserId();
       }
     });
 
@@ -200,10 +238,12 @@ export default {
       searchQuery,
       selectedUserId,
       sendMessage,
-      getMessage,
+      getUser,
       searchUser,
+      getMessage,
       token,
       initializePusher,
+      currentUserId,
     };
   },
 
@@ -215,7 +255,9 @@ export default {
 
 <style>
 h1 {
-  color: aqua;
+  color: rgba(42, 13, 238, 0.5);
+  margin-top: 30px!important;
+  margin-left: -40px !important;
 }
 
 .list-group {
@@ -227,4 +269,10 @@ a {
   text-decoration: none;
   color: black;
 }
+.but{
+  width: 300px !important;
+  border-radius: 20px;
+}
+
+
 </style>
