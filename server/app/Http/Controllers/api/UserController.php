@@ -24,10 +24,13 @@ class UserController extends Controller
     {
 
     }
-    public function searchUser(Request $request,$name){
-        $member= User::where('name', 'like', '%' . $name . '%')->get();
-        return json_encode($member);
+    public function searchUser($name)
+    {
+        $members = User::where('name', 'like', '%' . $name . '%')->get();
+
+        return response()->json($members);
     }
+
     /**
      * Display the specified resource.
      */

@@ -15,7 +15,7 @@ return [
     |
     */
 
-    'default' => env('BROADCAST_DRIVER', 'null'),
+    'default' => env('BROADCAST_DRIVER', 'pusher'),
 
     /*
     |--------------------------------------------------------------------------
@@ -43,7 +43,7 @@ return [
                 'host' => env('PUSHER_HOST', '127.0.0.1'),
                 'port' => env('PUSHER_PORT', 6001),
                 'scheme' => env('PUSHER_SCHEME', 'http'),
-                'encrypted' => false,
+                'encrypted' => true,
                 'useTLS' => false,
                 'curl_options' => [
                     CURLOPT_SSL_VERIFYHOST => 0,

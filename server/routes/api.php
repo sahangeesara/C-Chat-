@@ -7,6 +7,7 @@ use App\Http\Controllers\ChatController;
 use App\Http\Controllers\ResetPasswordController;
 use Illuminate\Support\Facades\Broadcast;
 use Illuminate\Support\Facades\Route;
+use Illuminate\Http\Request;
 
 Route::post('login', [AuthController::class,'login']);
 Route::post('signup', [AuthController::class,'signup']);
@@ -21,7 +22,8 @@ Route::middleware(['auth:api'])->group(function () {
     Route::post('home', [AuthController::class,'home']);
     Route::get('me', [AuthController::class,'me']);
 
-    Route::get('getUser/{name}', [UserController::class,'searchUser']);
+    Route::get('getUser/{name}', [UserController::class, 'searchUser']);
+
 
     Route::get('chat/{id}', [ChatController::class,'chat']);
     Route::post('send', [ChatController::class,'send']);
@@ -30,6 +32,9 @@ Route::middleware(['auth:api'])->group(function () {
     Route::get('/test-broadcast', function () {
         broadcast(new \App\Events\ChatEvent(auth()->user()));
         return 'Broadcast Sent!';
+    });
+    Route::post('/broadcasting/auth', function (Request $request) {
+        return Broadcast::auth($request);
     });
 
 });

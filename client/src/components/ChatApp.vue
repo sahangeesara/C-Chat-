@@ -22,10 +22,16 @@
 
           <!-- User List -->
           <div v-for="user in userView" :key="user.id">
-            <button class="btn btn-outline-primary mt-3 but" @click="getUser(user.id)">
+            <button
+                class="btn btn-outline-primary mt-3 but"
+                @click="selectUser(user.id)"
+                v-if="!selectedUserId || selectedUserId === user.id"
+                :class="{ 'active': selectedUserId === user.id }"
+            >
               {{ user.name }}
             </button>
           </div>
+
 
           <!-- Logout -->
           <div class="mt-auto">
@@ -161,14 +167,30 @@ export default {
     };
 
 
-    // Search user when typing
+    const selectUser = (user_id) => {
+      selectedUserId.value = user_id; // Set selected user
+      getMessage(user_id);
+    };
+
     const searchUser = async () => {
       if (!searchQuery.value.trim()) {
-        userView.value = [];
+        await fetchUserData(''); // Load all users if search is empty
         return;
       }
+
       await fetchUserData(searchQuery.value);
+
+      // let oldSelectedUserId = selectedUserId.value;
+
+      // Ensure the selected user is still visible in the filtered results
+      const selectedUserExists = userView.value.some(user => user.id === selectedUserId.value);
+
+      if (selectedUserExists) {
+        selectedUserId.value = null; // Reset selection if the selected user is not found
+      }
     };
+
+
 
     const getUser = (user_id) => {
       selectedUserId.value = user_id;
@@ -198,6 +220,7 @@ export default {
         console.log('Chat container mounted');
         scrollToBottom();
         fetchUserId();
+        initializePusher();
       }
     });
 
@@ -244,6 +267,7 @@ export default {
       token,
       initializePusher,
       currentUserId,
+      selectUser,
     };
   },
 

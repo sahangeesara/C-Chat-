@@ -1,5 +1,6 @@
 <?php
 
+use App\Models\User;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Broadcast;
 
@@ -13,10 +14,10 @@ use Illuminate\Support\Facades\Broadcast;
 | used to check if an authenticated user can listen to the channel.
 |
 */
-Broadcast::routes(['middleware' => ['auth:api']]);
+Broadcast::routes(['middleware' => ['auth:sanctum']]); // 👈 Use 'auth:sanctum' for API authentication
 
-Broadcast::channel('chat', function ($user) {
-    return ['id' => $user->id, 'name' => $user->name]; // Only authenticated users can listen
+Broadcast::channel('chat.{userId}', function (User $user, $userId) {
+    return (int) $user->id === (int) $userId;
 });
 
 Broadcast::channel('chat', function ($user) {

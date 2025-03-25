@@ -37,41 +37,36 @@ class ChatController extends Controller
     {
         $request->validate([
             'message' => 'required',
+            'user_id' => 'required|exists:user,id',
         ]);
 
-        // Directly access the data, no need for json_encode
-        $data = $request->all();  // $data is now an array, not a string
-        $inputMessage  = $data['message'];  // Directly access 'message'
-        $userId = $data['user_id'];  // Directly access 'user_id'
+        $inputMessage = $request->message;
+        $toUserId = $request->user_id;
+        $fromUserId = auth()->id();
 
-
-        if (is_array($userId)) {
-            $userId = $userId[0]; // Adjust as necessary if userId is an array
+        if ($fromUserId == $toUserId) {
+            return response()->json(['error' => 'You cannot send messages to yourself.'], 400);
         }
 
-        $athUser = Auth::user();
-        $user = User::find($userId);
-
-        if ($user) {
-            // Fire the event
-            event(new ChatEvent($inputMessage, $user));
-        } else {
-            return response()->json(['error' => 'Select User']);
-        }
-
-        try{
-            $message =new Message();
-            $message->to_id = $user->id;
-            $message->from_id = $athUser->id;
+        try {
+            // Save the message
+            $message = new Message();
+            $message->to_id = $toUserId;
+            $message->from_id = $fromUserId;
             $message->body = $inputMessage;
             $message->save();
 
-            return response()->json(['status' => 'Message sent!'],200);
-        }catch (\Exception $e) {
-            // Log the error and return an appropriate response
+            $user = User::where('id', $fromUserId)->first();
+
+            // Fire the event for real-time broadcasting
+            broadcast(new ChatEvent(auth()->user()->name, $request->message))->toOthers();
+
+            return response()->json(['status' => 'Message sent!', 'message' => $message], 200);
+        } catch (\Exception $e) {
             Log::error($e->getMessage());
-            return response()->json(['message' => 'An error occurred while retrieving Message.'], 500);
+            return response()->json(['message' => 'An error occurred while sending the message.'], 500);
         }
     }
+
 
 }

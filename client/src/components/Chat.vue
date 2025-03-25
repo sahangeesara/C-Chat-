@@ -11,12 +11,17 @@
 </template>
 
 <script>
+import echo from "@/services/echo";
 export default {
+
   mounted() {
-    this.$echo.private(`chat`)
+    this.$echo.private(`chat.${this.currentUserId}`)
         .listen('ChatEvent', (e) => {
           console.log("New message received:", e.message);
-          this.messages.push(e.message); // Update chat messages dynamically
+          this.messages.push(e.message);
+        })
+        .error((err) => {
+          console.error('Error with Pusher:', err);
         });
   },
 
