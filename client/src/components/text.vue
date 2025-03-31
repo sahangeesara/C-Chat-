@@ -6,7 +6,7 @@
         <!-- Profile Header -->
         <div class="p-3 border-bottom">
           <h1 class="mb-0 fw-bold">Ch-Chat</h1>
-          <small class="text-muted">{{ currentUserName }}</small>
+          <small class="text-muted">chat</small>
         </div>
 
         <!-- Search Bar -->
@@ -42,11 +42,11 @@
                   <span class="text-white">{{ user?.name?.charAt(0) || '?' }}</span>
                 </span>
               </span>
-              <span class="flex-grow-1">
+                          <span class="flex-grow-1">
                 {{ user?.name || 'Unknown User' }}
                 <small class="text-muted text-truncate d-block" style="max-width: 250px;">Message for {{ user?.name || 'Unknown' }}</small>
               </span>
-              <span class="flex-shrink-0">
+                          <span class="flex-shrink-0">
                 <small class="text-muted">12:30 PM</small>
               </span>
             </button>
@@ -85,7 +85,7 @@
               <i class="bi bi-camera-video"></i>
             </button>
             <button class="btn btn-sm btn-outline-primary">
-              <i class="bi bi-telephone fs-6"></i>
+              <i class="bi bi-person-plus"></i>
             </button>
           </div>
         </div>
@@ -110,7 +110,7 @@
             >
               {{ msg.body }}
               <div class="text-end" style="font-size: 0.7rem; margin-top: 2px;">
-                <span style="color: rgba(3,1,1,0.7) !important;"> {{ new Date(msg.created_at).toLocaleDateString([], {month: '2-digit', day:'2-digit', year: 'numeric'}) }}</span>
+                <span class="text-muted"> {{ new Date(msg.created_at).toLocaleDateString([], {month: '2-digit', day:'2-digit', year: 'numeric'}) }}</span>
                 <span v-if="msg.from_id === currentUserId" class="ms-1">
                   <i class="bi bi-check2-all text-info"></i>
                 </span>
@@ -170,7 +170,6 @@ export default {
     const searchQuery = ref('');
     const selectedUser = ref(null);
     let currentUserId = ref(null);
-    let currentUserName = ref(null);
 
     const store = useStore();
     const token = computed(() => store.getters.getToken);
@@ -217,7 +216,6 @@ export default {
         const response = await allService.getUser();
         if (response && response.user && response.user.id) {
           currentUserId.value = response.user.id;
-          currentUserName.value = response.user.name;
         } else {
           console.warn("No user ID found in response.");
         }
@@ -326,7 +324,6 @@ export default {
       searchQuery,
       selectedUser,
       currentUserId,
-      currentUserName,
       currentDate,
       filteredUsers,
       sendMessage,
@@ -426,11 +423,6 @@ body, html {
 /* Fix for the row height */
 .row.h-100 {
   height: 750px !important;
-  margin-top: 50px !important;
-}
-@media (min-width: 400px)and (max-width: 864px) {
-  .row.h-100 {
-    height: 550px !important;
-  }
+  margin: 0;
 }
 </style>

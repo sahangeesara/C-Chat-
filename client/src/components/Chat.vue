@@ -98,7 +98,7 @@ export default {
 
 .timestamp {
   font-size: 10px;
-  color: gray;
+  color: #ff0000;
   align-self: flex-end;
 }
 

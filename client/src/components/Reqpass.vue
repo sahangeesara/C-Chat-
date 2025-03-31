@@ -1,12 +1,12 @@
 <template>
-  <div class="contemer">
+  <div class="container ">
     <div class="row" style="padding-top: 100px !important">
       <div class="col-4"></div>
       <div
-        class="card p-0 col-6"
+        class="card p-0 col-6 cardRed"
         style="height: 210px !important; width: 500px"
       >
-        <div class="card-header bg-primary" style="color: white">
+        <div class="card-header bg-primary cardRed" style="color: white">
           Send Email Reset Password
         </div>
         <div class="card-body bground">
@@ -27,10 +27,13 @@
               />
             </div>
             <br />
-            <div class="float-end">
+            <div class="d-flex justify-content-between mt-1">
               <button type="submit" class="btn btn-primary">
                 Send Password reset Email
               </button>
+
+              &nbsp;&nbsp;
+              <router-link to="/" class="btn btn-outline-primary">Sign In</router-link>
             </div>
           </form>
         </div>
@@ -89,19 +92,22 @@ export default {
    
     <style scoped>
 h1 {
-  color: aqua;
+  color: #fdfdfd;
 }
 .text-center {
   padding: 200px 500px;
 }
 .bground {
-  background: rgb(2, 0, 36);
+  background: rgb(120, 114, 208);
   background: linear-gradient(
     90deg,
     rgba(2, 0, 36, 1) 0%,
     rgba(221, 255, 222, 0.050945378151260545) 0%,
-    rgba(221, 242, 218, 0.48792016806722693) 84%
+    rgb(240, 241, 246) 84%
   );
+}
+.cardRed{
+  border-radius: 15px;
 }
 </style>
     

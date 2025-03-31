@@ -22,6 +22,7 @@ class ChatController extends Controller
                     $query->where('from_id', $authUserId)->where('to_id', $id)
                         ->orWhere('from_id', $id)->where('to_id', $authUserId);
                 })
+                ->where('is_active',1)
                 ->orderBy('created_at', "ASC") // Order by oldest to newest
                 ->get();
 
@@ -44,9 +45,9 @@ class ChatController extends Controller
         $toUserId = $request->user_id;
         $fromUserId = auth()->id();
 
-        if ($fromUserId == $toUserId) {
-            return response()->json(['error' => 'You cannot send messages to yourself.'], 400);
-        }
+//        if ($fromUserId == $toUserId) {
+//            return response()->json(['error' => 'You cannot send messages to yourself.'], 400);
+//        }
 
         try {
             // Save the message

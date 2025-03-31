@@ -5,10 +5,12 @@ import SignUp from './components/SignUp.vue';
 import Reqpass from './components/Reqpass.vue';
 import Restpass from './components/Restpass.vue';
 import { createRouter, createWebHistory } from "vue-router";
+import text from "@/components/text.vue";
 
 const routes = [
     { path: '/', component: Login },
     { path: '/chatapp', component: ChatApp },
+    { path: '/text', component: text },
     { path: '/signup', component: SignUp },
     { path: '/request-password-reset', component: Reqpass },
     { path: '/resetpassword', component: Restpass },
