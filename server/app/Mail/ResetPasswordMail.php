@@ -42,7 +42,7 @@ class ResetPasswordMail extends Mailable
         return new Content(
             markdown: 'Email.passwordReset',
             with: ['token'=>$this->token,
-                'url'=>('http://localhost:8080/#/resetpassword?token='.$this->token->token)],
+                'url'=>'http://localhost:8080/#/resetpassword?token='.$this->token->token],
         );
     }
     /**

@@ -3,6 +3,7 @@ import store from '@/store'; // ✅ Import Vuex store
 import { getToken } from '@/services/authsev'; // ✅ Import helper function
 
 const API_BASE_URL = 'http://localhost:8000/api';
+// const API_BASE_URL = 'http://192.168.8.182:8000/api';
 
 export default class AllServiceService {
     constructor() {

@@ -13,6 +13,7 @@ const echo = new Echo({
     disableStats: true,
     enabledTransports: ['ws', 'wss'],
     authEndpoint: "http://127.0.0.1:8000/api/broadcasting/auth", // Ensure it's correct
+    // authEndpoint: "http://192.168.8.182:8000/api/broadcasting/auth", // Ensure it's correct
     auth: {
         headers: {
             Authorization: `Bearer ${localStorage.getItem("token")}`, // Pass API token

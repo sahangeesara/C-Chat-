@@ -14,13 +14,15 @@ const routes = [
     { path: '/signup', component: SignUp },
     { path: '/request-password-reset', component: Reqpass },
     { path: '/resetpassword', component: Restpass },
-   
+
   //   { path: '/:pathMatch(.*)*', component: NotFound }, // Catch-all route for 404 handling
-  ];const router = createRouter({
-    history: createWebHistory(),
-    routes,
-  });
-  
- 
+  ];
+
+// const router = createRouter({
+//     history: createWebHistory(),
+//     routes,
+//   });
+//
+
 
 export default routes;

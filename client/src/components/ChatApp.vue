@@ -291,6 +291,7 @@ export default {
         cluster: 'ap2',
         channelAuthorization: {
           endpoint: 'http://127.0.0.1:8000/api/broadcasting/auth',
+          // endpoint: 'http://192.168.8.182:8000/api/broadcasting/auth',
           auth: {
             headers: { Authorization: 'Bearer ' + token.value },
           },
