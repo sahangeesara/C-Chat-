@@ -23,3 +23,8 @@ Broadcast::channel('chat.{userId}', function (User $user, $userId) {
 Broadcast::channel('chat', function ($user) {
     return Auth::check(); // Only authenticated users can listen
 });
+
+
+Broadcast::channel('presence-online', function ($user) {
+    return ['id' => $user->id, 'name' => $user->name];
+});

@@ -36,8 +36,15 @@ class UserController extends Controller
      */
     public function show(string $id)
     {
-        //
+        $member = User::findOrFail($id);
+
+        if (!$member) {
+            return response()->json(['message' => 'User not found'], 404);
+        }
+
+        return response()->json($member);
     }
+
 
     /**
      * Update the specified resource in storage.

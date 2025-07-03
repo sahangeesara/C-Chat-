@@ -29,6 +29,15 @@ class ChatEvent implements ShouldBroadcastNow
         return new Channel('chat'); // Ensure Vue listens on 'chat'
     }
 
+    public function broadcastWith()
+    {
+        return [
+            'user_id' => $this->user->id,
+            'message' => $this->message,
+        ];
+    }
+
+
     public function broadcastAs()
     {
         return 'my-event'; // This should match Vue

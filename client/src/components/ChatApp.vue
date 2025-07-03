@@ -39,7 +39,7 @@
             >
               <span class="flex-shrink-0 me-2">
                 <span class="rounded-circle bg-secondary d-flex align-items-center justify-content-center" style="width: 40px; height: 40px;">
-                  <span class="text-white">{{ user?.name?.charAt(0) || '?' }}</span>
+                  <span class="text-white" >{{ user?.name?.charAt(0) || '?' }}</span>
                 </span>
               </span>
               <span class="flex-grow-1">
@@ -72,7 +72,7 @@
           <div class="d-flex align-items-center">
             <div class="me-3">
               <div class="rounded-circle bg-secondary d-flex align-items-center justify-content-center" style="width: 40px; height: 40px;">
-                <span class="text-white">{{ selectedUser.name.charAt(0) }}</span>
+                <span class="text-white" >{{ selectedUser.name.charAt(0) }}</span>
               </div>
             </div>
             <div>
@@ -159,6 +159,7 @@ import Chat from './Chat.vue';
 import Pusher from 'pusher-js';
 import { useStore } from 'vuex';
 import AllServiceService from '@/services/all-service';
+import channel from "vue-chat-scroll/src/directives/v-chat-scroll";
 
 export default {
   components: { Chat },
@@ -226,6 +227,20 @@ export default {
       }
     };
 
+    const userId = async (id) => {
+      try {
+        const response = await allService.getUserProfile(id);
+        if (response && response.user && response.user.id) {
+          currentUserId.value = response.user.id;
+          currentUserName.value = response.user.name;
+        } else {
+          console.warn("No user ID found in response.");
+        }
+      } catch (error) {
+        console.error("Error fetching user:", error);
+      }
+    };
+
     const sendMessage = async () => {
       if (!message.value || !selectedUser.value) {
         console.error("No user selected or message empty!");
@@ -258,6 +273,12 @@ export default {
       selectedUser.value = user;
       getMessage(user.id);
     };
+
+    const selectUserprofile = (user) => {
+      selectedUser.value = user;
+      userId(user.id);
+    };
+
 
     const searchUser = async () => {
       await fetchUserData(searchQuery.value);
@@ -300,13 +321,34 @@ export default {
 
       const channel = pusherInstance.subscribe('chat');
       channel.bind('my-event', (data) => {
-        if (data.user_id === selectedUser.value?.id) {
+        console.log('Received real-time data:', data);
+
+        // Make sure current selected user is the same as the sender
+        if (selectedUser.value && data.user_id === selectedUser.value.id) {
           chat.value.messages.push({
             from_id: data.user_id,
-            body: data.message
+            body: data.message,
+            // created_at: new Date()
           });
+          scrollToBottom();
         }
       });
+
+      const presence = pusherInstance.subscribe('presence-online');
+
+      presence.bind('pusher:subscription_succeeded', (members) => {
+        console.log('Online users:', members.members);
+      });
+
+      presence.bind('pusher:member_added', (member) => {
+        console.log('User joined:', member);
+      });
+
+      presence.bind('pusher:member_removed', (member) => {
+        console.log('User left:', member);
+      });
+
+
     };
 
     onMounted(() => {
@@ -333,7 +375,9 @@ export default {
       sendMessage,
       selectUser,
       searchUser,
-      getMessage
+      getMessage,
+      selectUserprofile,
+      userId
     };
   }
 };

@@ -23,7 +23,7 @@ Route::middleware(['auth:api'])->group(function () {
     Route::get('me', [AuthController::class,'me']);
 
     Route::get('getUser/{name}', [UserController::class, 'searchUser']);
-
+    Route::apiResource('user', UserController::class);
 
     Route::get('chat/{id}', [ChatController::class,'chat']);
     Route::post('send', [ChatController::class,'send']);

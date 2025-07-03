@@ -60,7 +60,7 @@ class ChatController extends Controller
             $user = User::where('id', $fromUserId)->first();
 
             // Fire the event for real-time broadcasting
-            broadcast(new ChatEvent(auth()->user()->name, $request->message))->toOthers();
+            broadcast(new ChatEvent(auth()->user(), $inputMessage))->toOthers();
 
             return response()->json(['status' => 'Message sent!', 'message' => $message], 200);
         } catch (\Exception $e) {

@@ -16,7 +16,7 @@ const echo = new Echo({
     // authEndpoint: "http://192.168.8.182:8000/api/broadcasting/auth", // Ensure it's correct
     auth: {
         headers: {
-            Authorization: `Bearer ${localStorage.getItem("token")}`, // Pass API token
+            Authorization: `Bearer ${localStorage.getItem("token")}`,
             "X-CSRF-TOKEN": document.querySelector('meta[name="csrf-token"]')?.getAttribute("content") || '',
         },
     },
