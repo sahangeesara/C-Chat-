@@ -39,3 +39,4 @@ Route::middleware(['auth:api'])->group(function () {
 
 });
 
+Broadcast::routes(['middleware' => ['auth:sanctum']]);

@@ -93,7 +93,7 @@ export default {
 
     handleResponse(data) {
       if (data.access_token) {
-        this.$store.commit("authsev/setToken", data.access_token);
+        this.$store.commit('auth/setToken', data.access_token)
         axios.defaults.headers.common["Authorization"] = `Bearer ${data.access_token}`;
         this.$router.push("/chatapp");
       } else {

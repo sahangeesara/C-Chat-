@@ -16,7 +16,7 @@ export default class AllServiceService {
 
         // ✅ Axios Interceptor to Attach Token
         this.http.interceptors.request.use((config) => {
-            const token = store.getters['authsev/getToken']; // ✅ Use namespaced module ✅ Get token from Vuex
+            const token = store.getters['auth/getToken']; // ✅ Use namespaced module ✅ Get token from Vuex
             if (token) {
                 config.headers.Authorization = `Bearer ${token}`;
                 console.log("Authorization Token Sent:", token);

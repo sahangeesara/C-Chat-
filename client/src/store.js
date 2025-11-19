@@ -1,6 +1,9 @@
 import { createStore } from 'vuex';
-
+import auth from './store/modules/auth';
 export default createStore({
+  modules: {
+    auth
+  },
   state: {
     loggedIn: JSON.parse(localStorage.getItem('loggedIn')) || false,
     token: localStorage.getItem('token') || null, // ✅ Store token

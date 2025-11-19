@@ -1,25 +1,29 @@
-import Echo from 'laravel-echo';
-import Pusher from 'pusher-js';
+import Echo from 'laravel-echo'
+import Pusher from 'pusher-js'
+import store from '../store'
 
-window.Pusher = Pusher;
+window.Pusher = Pusher
 
 const echo = new Echo({
     broadcaster: 'pusher',
-    key: 'd48f36eb19647382a1d0', // Your Pusher key
+    key: 'd48f36eb19647382a1d0', // your Pusher key
     cluster: 'ap2',
     wsHost: window.location.hostname,
     wsPort: 6001,
     forceTLS: false,
     disableStats: true,
     enabledTransports: ['ws', 'wss'],
-    authEndpoint: "http://127.0.0.1:8000/api/broadcasting/auth", // Ensure it's correct
-    // authEndpoint: "http://192.168.8.182:8000/api/broadcasting/auth", // Ensure it's correct
+
+    // ✅ Your Laravel broadcast auth route
+    authEndpoint: 'http://127.0.0.1:8000/api/broadcasting/auth',
+
+    // ✅ Always use latest token from Vuex or localStorage
     auth: {
         headers: {
-            Authorization: `Bearer ${localStorage.getItem("token")}`,
-            "X-CSRF-TOKEN": document.querySelector('meta[name="csrf-token"]')?.getAttribute("content") || '',
+            Authorization: `Bearer ${store.getters['auth/getToken'] || localStorage.getItem('token')}`,
+            Accept: 'application/json',
         },
     },
-});
+})
 
-export default echo;
+export default echo
