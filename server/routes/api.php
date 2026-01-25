@@ -33,8 +33,8 @@ Route::middleware(['auth:api'])->group(function () {
 
     // Test broadcast
     Route::get('/test-broadcast', function () {
-        broadcast(new \App\Events\ChatEvent(auth()->user()));
-        return 'Broadcast Sent!';
+        broadcast(new \App\Events\ChatEvent(auth()->user(), "TEST MESSAGE"));
+        return 'sent';
     });
 
     // Broadcasting auth
@@ -42,6 +42,14 @@ Route::middleware(['auth:api'])->group(function () {
         return Broadcast::auth($request);
     });
 });
+
+Route::middleware('auth:api')->post('/broadcasting/auth', function (Request $request) {
+    return Broadcast::auth($request);
+});
+Route::middleware('auth:api')->get('/debug-auth', function(Request $request){
+    return $request->user();
+});
+
 
 // Broadcasting with Sanctum
 Broadcast::routes(['middleware' => ['auth:sanctum']]);

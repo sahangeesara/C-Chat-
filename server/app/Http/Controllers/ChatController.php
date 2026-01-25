@@ -54,7 +54,7 @@ class ChatController extends Controller
             $message->save();
 
             // Fire the event for real-time broadcasting
-            broadcast(new ChatEvent($fromUserId, $toUserId, $inputMessage))->toOthers();
+            broadcast(new ChatEvent(auth()->user(), $inputMessage))->toOthers();
 
             return response()->json(['status' => 'Message sent!', 'message' => $message], 200);
         } catch (\Exception $e) {

@@ -18,8 +18,8 @@ export default {
     const toId = this.senderId; // sender or receiver depending on context
     const fromId = this.currentUserId;
 
-    echo.private(`chat.${toId}.${fromId}`)
-        .listen('.chat-message', (e) => {
+    echo.private(`chat`)
+        .listen('.chat.message', (e) => {
             console.log("New message:", e);
             this.messages.push({
                 from_id: e.from_id,
