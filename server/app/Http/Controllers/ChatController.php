@@ -45,10 +45,6 @@ class ChatController extends Controller
         $toUserId = $request->user_id;
         $fromUserId = auth()->id();
 
-//        if ($fromUserId == $toUserId) {
-//            return response()->json(['error' => 'You cannot send messages to yourself.'], 400);
-//        }
-
         try {
             // Save the message
             $message = new Message();
@@ -57,10 +53,8 @@ class ChatController extends Controller
             $message->body = $inputMessage;
             $message->save();
 
-            $user = User::where('id', $fromUserId)->first();
-
             // Fire the event for real-time broadcasting
-            broadcast(new ChatEvent(auth()->user(), $inputMessage))->toOthers();
+            broadcast(new ChatEvent($fromUserId, $toUserId, $inputMessage))->toOthers();
 
             return response()->json(['status' => 'Message sent!', 'message' => $message], 200);
         } catch (\Exception $e) {

@@ -2,44 +2,48 @@
 
 namespace App\Events;
 
-use Illuminate\Broadcasting\Channel;
-use Illuminate\Broadcasting\InteractsWithSockets;
-use Illuminate\Broadcasting\PresenceChannel;
 use Illuminate\Broadcasting\PrivateChannel;
-use Illuminate\Broadcasting\ShouldBroadcast;
-use Illuminate\Contracts\Broadcasting\ShouldBroadcastNow;
+use Illuminate\Broadcasting\InteractsWithSockets;
 use Illuminate\Foundation\Events\Dispatchable;
 use Illuminate\Queue\SerializesModels;
+use Illuminate\Contracts\Broadcasting\ShouldBroadcastNow;
 
 class ChatEvent implements ShouldBroadcastNow
 {
     use Dispatchable, InteractsWithSockets, SerializesModels;
 
-    public $user;
     public $message;
+    public $fromId;
+    public $toId;
 
-    public function __construct($user, $message)
+    public function __construct($fromId, $toId, $message)
     {
-        $this->user = $user;
+        $this->fromId = $fromId;
+        $this->toId = $toId;
         $this->message = $message;
     }
 
+
+
     public function broadcastOn()
     {
-        return new Channel('chat'); // Ensure Vue listens on 'chat'
+        return new PrivateChannel('chat.' . $this->toId . '.' . $this->fromId);
     }
+
 
     public function broadcastWith()
     {
         return [
-            'user_id' => $this->user->id,
+            'from_id' => $this->fromId,
+            'to_id' => $this->toId,
             'message' => $this->message,
         ];
     }
 
-
     public function broadcastAs()
     {
-        return 'my-event'; // This should match Vue
+        return 'chat-message';
     }
 }
+
+

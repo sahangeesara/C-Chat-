@@ -36,15 +36,12 @@ return [
             'secret' => env('PUSHER_APP_SECRET'),
             'app_id' => env('PUSHER_APP_ID'),
             'options' => [
-                'cluster' => env('PUSHER_APP_CLUSTER'),
-//                'host' => env('PUSHER_HOST') ?: 'api-'.env('PUSHER_APP_CLUSTER', 'mt1').'.pusher.com',
-////                'host' => 'api-' . env('PUSHER_APP_CLUSTER') . '.pusher.com',
-//                'port' => env('PUSHER_PORT', 443),
-                'host' => env('PUSHER_HOST', '127.0.0.1') . '.pusher.com',
+                'cluster' => env('PUSHER_APP_CLUSTER'), // Cluster is ignored for local
+                'host' => env('PUSHER_HOST', '127.0.0.1'), // ✅ Do NOT append .pusher.com
                 'port' => env('PUSHER_PORT', 6001),
                 'scheme' => env('PUSHER_SCHEME', 'http'),
-                'encrypted' => false,
                 'useTLS' => false,
+                'encrypted' => false,
                 'curl_options' => [
                     CURLOPT_SSL_VERIFYHOST => 0,
                     CURLOPT_SSL_VERIFYPEER => 0,
@@ -52,10 +49,8 @@ return [
                 'forceTLS' => false,
                 'enabledTransports' => ['ws', 'wss'],
             ],
-            'client_options' => [
-                $client = new GuzzleHttp\Client(['base_uri' => 'http://localhost:8080/#/']),
-            ],
         ],
+
 
         'ably' => [
             'driver' => 'ably',

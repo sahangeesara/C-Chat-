@@ -1,29 +1,24 @@
-import Echo from 'laravel-echo'
-import Pusher from 'pusher-js'
-import store from '../store'
+import Echo from 'laravel-echo';
+import Pusher from 'pusher-js';
+import store from '@/store';
+import.meta.env.VITE_PUSHER_APP_KEY
+import.meta.env.VITE_PUSHER_APP_CLUSTER
 
-window.Pusher = Pusher
+window.Pusher = Pusher;
 
-const echo = new Echo({
+window.Echo = new Echo({
     broadcaster: 'pusher',
-    key: 'd48f36eb19647382a1d0', // your Pusher key
-    cluster: 'ap2',
-    wsHost: window.location.hostname,
-    wsPort: 6001,
+    key: import.meta.env.VITE_PUSHER_APP_KEY,
+    cluster: import.meta.env.VITE_PUSHER_APP_CLUSTER,
+    wsHost: import.meta.env.VITE_PUSHER_APP_HOST,
+    wsPort: import.meta.env.VITE_PUSHER_APP_PORT,
     forceTLS: false,
-    disableStats: true,
-    enabledTransports: ['ws', 'wss'],
-
-    // ✅ Your Laravel broadcast auth route
-    authEndpoint: 'http://127.0.0.1:8000/api/broadcasting/auth',
-
-    // ✅ Always use latest token from Vuex or localStorage
+    encrypted: false,
     auth: {
         headers: {
-            Authorization: `Bearer ${store.getters['auth/getToken'] || localStorage.getItem('token')}`,
-            Accept: 'application/json',
+            Authorization: `Bearer ${store.getters['auth/getToken']}`,
         },
     },
-})
+});
 
 export default echo

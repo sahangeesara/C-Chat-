@@ -29,15 +29,17 @@ export default class AllServiceService {
         });
     }
 
-    async searchUser(query) {
-        try {
-            const response = await this.http.get(`/getUser/${query}`);
-            return response.data;
-        } catch (error) {
-            console.error('Error fetching user data:', error.response?.data || error.message);
-            throw error;
-        }
+   async searchUser(query) {
+    try {
+        // Use the updated route: /searchUser/:name
+        const response = await this.http.get(`/getUser/${query}`);
+        return response.data;
+    } catch (error) {
+        console.error('Error fetching user data:', error.response?.data || error.message);
+        throw error;
     }
+}
+
     async getUser(){
         try {
             const response = await this.http.get(`/me`);

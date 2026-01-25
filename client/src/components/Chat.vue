@@ -4,7 +4,6 @@
       <div class="message-content">
         <small class="name" :class="messageClass">{{ isSender ? "You" : "Them" }}</small>
         <div class="message-bubble">{{ body }}</div>
-        <!--        <small class="timestamp">{{ timestamp }}</small>-->
       </div>
     </div>
   </div>
@@ -12,27 +11,36 @@
 
 <script>
 import echo from "@/services/echo";
-export default {
 
+export default {
   mounted() {
-    this.$echo.private(`chat.${this.currentUserId}`)
-        .listen('ChatEvent', (e) => {
-          console.log("New message received:", e.message);
-          this.messages.push(e.message);
+    // The exact channel name matching backend:
+    const toId = this.senderId; // sender or receiver depending on context
+    const fromId = this.currentUserId;
+
+    echo.private(`chat.${toId}.${fromId}`)
+        .listen('.chat-message', (e) => {
+            console.log("New message:", e);
+            this.messages.push({
+                from_id: e.from_id,
+                to_id: e.to_id,
+                message: e.message
+            });
         })
         .error((err) => {
-          console.error('Error with Pusher:', err);
+            console.error('Error with Pusher:', err);
         });
   },
 
   props: {
-    senderId: Number, // ID of the sender
-    currentUserId: Number, // ✅ Authenticated user ID
-    body: String, // Message content
+    senderId: Number,      // ID of the other user
+    currentUserId: Number, // Authenticated user ID
+    body: String,          // Message content
   },
+
   computed: {
     isSender() {
-      return this.senderId === this.currentUserId; // ✅ Correctly check sender
+      return this.senderId === this.currentUserId;
     },
     messageClass() {
       return this.isSender ? "sent-message" : "received-message";
@@ -42,6 +50,7 @@ export default {
     },
   },
 };
+
 </script>
 <style scoped>
 

@@ -14,29 +14,34 @@ Route::post('signup', [AuthController::class,'signup']);
 Route::post('sendPasswordResetLink', [ResetPasswordController::class,'sendEmail']);
 Route::post('resetPassword', [ChangePasswordController::class,'process']);
 
-
 Route::middleware(['auth:api'])->group(function () {
 
     Route::post('logout', [AuthController::class,'logout']);
     Route::post('refresh', [AuthController::class,'refresh']);
-    Route::post('home', [AuthController::class,'home']);
     Route::get('me', [AuthController::class,'me']);
 
+    // User routes
+    Route::get('searchUser/{name}', [UserController::class, 'searchUser']); // search by name
     Route::get('getUser/{name}', [UserController::class, 'searchUser']);
+    Route::get('getUser/{id}', [UserController::class, 'getUser']);
+    // get by ID
     Route::apiResource('user', UserController::class);
 
+    // Chat routes
     Route::get('chat/{id}', [ChatController::class,'chat']);
     Route::post('send', [ChatController::class,'send']);
 
-
+    // Test broadcast
     Route::get('/test-broadcast', function () {
         broadcast(new \App\Events\ChatEvent(auth()->user()));
         return 'Broadcast Sent!';
     });
+
+    // Broadcasting auth
     Route::post('/broadcasting/auth', function (Request $request) {
         return Broadcast::auth($request);
     });
-
 });
 
+// Broadcasting with Sanctum
 Broadcast::routes(['middleware' => ['auth:sanctum']]);
