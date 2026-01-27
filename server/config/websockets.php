@@ -72,6 +72,9 @@ return [
         'web',
         Authorize::class,
     ],
+    'log' => [
+        'enabled' => false,
+    ],
 
     'statistics' => [
         /*

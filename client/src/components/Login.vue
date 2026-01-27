@@ -81,8 +81,18 @@ export default {
       this.error = null;
 
       try {
-        const response = await axios.post("http://localhost:8000/api/login", this.userData);
-        // const response = await axios.post("http://192.168.8.182:8000/api/login", this.userData);
+        // 🔑 REQUIRED: Initialize Sanctum session
+        await axios.get("http://127.0.0.1:8000/sanctum/csrf-cookie", {
+          withCredentials: true
+        });
+
+        // 🔐 Then login
+        const response = await axios.post(
+            "http://127.0.0.1:8000/api/login",
+            this.userData,
+            { withCredentials: true }
+        );
+
         this.handleResponse(response.data);
       } catch (error) {
         this.handleError(error);

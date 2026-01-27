@@ -33,33 +33,37 @@ class ChatController extends Controller
         }
     }
 
-
     public function send(Request $request)
     {
         $request->validate([
-            'message' => 'required',
-            'user_id' => 'required|exists:user,id',
+            'message' => 'required|string',
+            'user_id' => 'required|exists:user,id', // your table name is `user`
         ]);
 
-        $inputMessage = $request->message;
-        $toUserId = $request->user_id;
-        $fromUserId = auth()->id();
+        $fromId = auth()->id();
+        $toId   = $request->user_id;
 
         try {
-            // Save the message
             $message = new Message();
-            $message->to_id = $toUserId;
-            $message->from_id = $fromUserId;
-            $message->body = $inputMessage;
+            $message->from_id = $fromId;
+            $message->to_id   = $toId;
+            $message->body    = $request->message;
             $message->save();
 
-            // Fire the event for real-time broadcasting
-            broadcast(new ChatEvent(auth()->user(), $inputMessage))->toOthers();
+            broadcast(new ChatEvent(
+                $message->body,
+                $fromId,
+                $toId
+            ))->toOthers();
 
-            return response()->json(['status' => 'Message sent!', 'message' => $message], 200);
+            return response()->json([
+                'status' => 'Message sent',
+                'message' => $message
+            ], 200);
+
         } catch (\Exception $e) {
-            Log::error($e->getMessage());
-            return response()->json(['message' => 'An error occurred while sending the message.'], 500);
+            \Log::error($e->getMessage());
+            return response()->json(['error' => 'Message failed'], 500);
         }
     }
 

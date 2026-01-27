@@ -1,5 +1,6 @@
 <?php
 
+use App\Events\ChatEvent;
 use App\Http\Controllers\api\UserController;
 use App\Http\Controllers\AuthController;
 use App\Http\Controllers\ChangePasswordController;
@@ -8,6 +9,9 @@ use App\Http\Controllers\ResetPasswordController;
 use Illuminate\Support\Facades\Broadcast;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Http\Request;
+
+
+Broadcast::routes(['middleware' => ['auth:api']]);
 
 Route::post('login', [AuthController::class,'login']);
 Route::post('signup', [AuthController::class,'signup']);
@@ -21,6 +25,10 @@ Route::middleware(['auth:api'])->group(function () {
     Route::get('me', [AuthController::class,'me']);
 
     // User routes
+    Route::get('/getUser', function () {
+        return auth()->user();
+    })->middleware('auth:api');
+
     Route::get('searchUser/{name}', [UserController::class, 'searchUser']); // search by name
     Route::get('getUser/{name}', [UserController::class, 'searchUser']);
     Route::get('getUser/{id}', [UserController::class, 'getUser']);
@@ -31,25 +39,11 @@ Route::middleware(['auth:api'])->group(function () {
     Route::get('chat/{id}', [ChatController::class,'chat']);
     Route::post('send', [ChatController::class,'send']);
 
-    // Test broadcast
+//    // Test broadcast
     Route::get('/test-broadcast', function () {
-        broadcast(new \App\Events\ChatEvent(auth()->user(), "TEST MESSAGE"));
+        broadcast(new ChatEvent("HELLO REALTIME", auth()->id(), 2));
         return 'sent';
     });
 
-    // Broadcasting auth
-    Route::post('/broadcasting/auth', function (Request $request) {
-        return Broadcast::auth($request);
-    });
 });
 
-Route::middleware('auth:api')->post('/broadcasting/auth', function (Request $request) {
-    return Broadcast::auth($request);
-});
-Route::middleware('auth:api')->get('/debug-auth', function(Request $request){
-    return $request->user();
-});
-
-
-// Broadcasting with Sanctum
-Broadcast::routes(['middleware' => ['auth:sanctum']]);

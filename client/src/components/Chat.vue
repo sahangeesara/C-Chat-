@@ -15,20 +15,21 @@ import echo from "@/services/echo";
 export default {
   mounted() {
     // The exact channel name matching backend:
-    const toId = this.senderId; // sender or receiver depending on context
     const fromId = this.currentUserId;
+    const toId   = this.selectedUserId;
 
-    echo.private(`chat`)
+    echo.private(`chat.${toId}.${fromId}`)
         .listen('.chat.message', (e) => {
-            console.log("New message:", e);
-            this.messages.push({
-                from_id: e.from_id,
-                to_id: e.to_id,
-                message: e.message
-            });
+          console.log('Realtime message:', e);
+
+          this.messages.push({
+            from_id: e.from_id,
+            to_id: e.to_id,
+            body: e.message
+          });
         })
-        .error((err) => {
-            console.error('Error with Pusher:', err);
+        .error(err => {
+          console.error('Echo error:', err);
         });
   },
 

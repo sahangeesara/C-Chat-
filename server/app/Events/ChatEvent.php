@@ -2,38 +2,33 @@
 
 namespace App\Events;
 
-use Illuminate\Contracts\Broadcasting\ShouldBroadcast;
 use Illuminate\Broadcasting\PrivateChannel;
+use Illuminate\Contracts\Broadcasting\ShouldBroadcast;
+use Illuminate\Foundation\Events\Dispatchable;
 use Illuminate\Queue\SerializesModels;
 
 class ChatEvent implements ShouldBroadcast
 {
-    use SerializesModels;
+    use Dispatchable, SerializesModels;
 
-    public $user;
     public $message;
+    public $from_id;
+    public $to_id;
 
-    public function __construct($user, $message)
+    public function __construct($message, $fromId, $toId)
     {
-        $this->user = $user;
         $this->message = $message;
+        $this->from_id = $fromId;
+        $this->to_id = $toId;
     }
 
     public function broadcastOn()
     {
-        return new PrivateChannel('chat');  // 🔥 must match frontend
+        return new PrivateChannel("chat.{$this->to_id}.{$this->from_id}");
     }
 
     public function broadcastAs()
     {
-        return 'chat.message';  // 🔥 must match frontend
-    }
-
-    public function broadcastWith()
-    {
-        return [
-            'user' => $this->user,
-            'message' => $this->message,
-        ];
+        return 'chat.message';
     }
 }

@@ -14,19 +14,20 @@ export default class AllServiceService {
             },
         });
 
-        // ✅ Axios Interceptor to Attach Token
         this.http.interceptors.request.use((config) => {
-            const token = store.getters['auth/getToken']; // ✅ Use namespaced module ✅ Get token from Vuex
+
+            if (config.url.includes('broadcasting/auth')) {
+                return config;
+            }
+
+            const token = store.getters['auth/getToken'];
             if (token) {
                 config.headers.Authorization = `Bearer ${token}`;
-                console.log("Authorization Token Sent:", token);
-            } else {
-                console.warn("No authentication token found!");
             }
+
             return config;
-        }, (error) => {
-            return Promise.reject(error);
         });
+
     }
 
    async searchUser(query) {
