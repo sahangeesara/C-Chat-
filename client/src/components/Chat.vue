@@ -20,23 +20,6 @@ export default {
     body:String,
   },
 
-  mounted() {
-    echo.private(`chat.${this.currentUserId}`)
-        .listen('.chat.message', (e) => {
-          console.log('Realtime message:', e);
-
-          this.messages.push({
-            from_id: e.from_id,
-            to_id: e.to_id,
-            body: e.message
-          });
-        })
-        .error(err => {
-          console.error('Echo error:', err);
-        });
-
-  },
-
   computed: {
     isSender() {
       return this.senderId === this.currentUserId;

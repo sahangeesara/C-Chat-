@@ -8,8 +8,7 @@ export default new Echo({
     broadcaster: 'pusher',
 
     key: 'd48f36eb19647382a1d0',
-
-    cluster: 'mt1',   // 🔥 REQUIRED by pusher-js (even locally)
+    cluster: 'mt1',        // REQUIRED by pusher-js
 
     wsHost: '127.0.0.1',
     wsPort: 6001,
@@ -26,7 +25,8 @@ export default new Echo({
                 method: 'POST',
                 headers: {
                     Authorization: `Bearer ${store.getters.getToken}`,
-                    'Content-Type': 'application/json'
+                    'Content-Type': 'application/json',
+                    'Accept': 'application/json'   // 🔥 IMPORTANT FIX
                 },
                 body: JSON.stringify({
                     socket_id: socketId,

@@ -11,7 +11,10 @@ use Illuminate\Support\Facades\Route;
 use Illuminate\Http\Request;
 
 
+Broadcast::routes(['middleware' => ['auth:jwt']]);
+Broadcast::routes(['middleware' => ['auth:sanctum']]);
 Broadcast::routes(['middleware' => ['auth:api']]);
+
 
 Route::post('login', [AuthController::class,'login']);
 Route::post('signup', [AuthController::class,'signup']);
