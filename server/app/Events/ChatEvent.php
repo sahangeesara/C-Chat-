@@ -9,22 +9,22 @@ use Illuminate\Queue\SerializesModels;
 
 class ChatEvent implements ShouldBroadcast
 {
-    use Dispatchable, SerializesModels;
-
-    public $message;
     public $from_id;
     public $to_id;
+    public $message;
+    public $created_at;
 
-    public function __construct($message, $fromId, $toId)
+    public function __construct($from, $to, $message)
     {
+        $this->from_id = $from;
+        $this->to_id = $to;
         $this->message = $message;
-        $this->from_id = $fromId;
-        $this->to_id = $toId;
+        $this->created_at = now();
     }
 
     public function broadcastOn()
     {
-        return new PrivateChannel("chat.{$this->to_id}.{$this->from_id}");
+        return new PrivateChannel('chat.' . $this->to_id);
     }
 
     public function broadcastAs()
@@ -32,3 +32,4 @@ class ChatEvent implements ShouldBroadcast
         return 'chat.message';
     }
 }
+

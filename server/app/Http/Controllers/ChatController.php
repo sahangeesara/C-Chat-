@@ -51,10 +51,11 @@ class ChatController extends Controller
             $message->save();
 
             broadcast(new ChatEvent(
-                $message->body,
-                $fromId,
-                $toId
+                auth()->id(),
+                $request->user_id,
+                $request->message
             ))->toOthers();
+
 
             return response()->json([
                 'status' => 'Message sent',

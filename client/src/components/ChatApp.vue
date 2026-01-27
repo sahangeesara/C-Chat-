@@ -156,10 +156,9 @@
 <script>
 import { ref, onMounted, onUpdated, computed } from 'vue';
 import Chat from './Chat.vue';
-import Pusher from 'pusher-js';
 import { useStore } from 'vuex';
 import AllServiceService from '@/services/all-service';
-import channel from "vue-chat-scroll/src/directives/v-chat-scroll";
+
 
 export default {
   components: { Chat },
@@ -243,29 +242,28 @@ export default {
 
     const sendMessage = async () => {
       if (!message.value || !selectedUser.value) {
-        console.error("No user selected or message empty!");
         return;
       }
 
+      const text = message.value.trim();
+
+      // 🔥 CLEAR INPUT IMMEDIATELY
+      message.value = '';
+
+      // 🔥 SHOW MESSAGE IN UI INSTANTLY
+      chat.value.messages.push({
+        from_id: currentUserId.value,
+        to_id: selectedUser.value.id,
+        body: text
+      });
+
       try {
-        const response = await allService.sendMessages({
+        await allService.sendMessages({
           user_id: selectedUser.value.id,
-          message: message.value.trim()
+          message: text
         });
-
-        if(response.error){
-          alert(response.error);
-        }
-
-        if (response.status === 'Message sent!') {
-          chat.value.messages.push({
-            from_id: currentUserId.value,
-            body: message.value.trim()
-          });
-          message.value = '';
-        }
       } catch (error) {
-        console.error('Error sending message:', error);
+        console.error('Send failed:', error);
       }
     };
 
@@ -306,55 +304,10 @@ export default {
       }
     };
 
-    const initializePusher = () => {
-      Pusher.logToConsole = true;
-      const pusherInstance = new Pusher('d48f36eb19647382a1d0', {
-        cluster: 'ap2',
-        channelAuthorization: {
-          endpoint: 'http://127.0.0.1:8000/api/broadcasting/auth',
-          // endpoint: 'http://192.168.8.182:8000/api/broadcasting/auth',
-          auth: {
-            headers: { Authorization: 'Bearer ' + token.value },
-          },
-        },
-      });
-
-      const channel = pusherInstance.subscribe('chat');
-      channel.bind('my-event', (data) => {
-        console.log('Received real-time data:', data);
-
-        // Make sure current selected user is the same as the sender
-        if (selectedUser.value && data.user_id === selectedUser.value.id) {
-          chat.value.messages.push({
-            from_id: data.user_id,
-            body: data.message,
-            // created_at: new Date()
-          });
-          scrollToBottom();
-        }
-      });
-
-      const presence = pusherInstance.subscribe('presence-online');
-
-      presence.bind('pusher:subscription_succeeded', (members) => {
-        console.log('Online users:', members.members);
-      });
-
-      presence.bind('pusher:member_added', (member) => {
-        console.log('User joined:', member);
-      });
-
-      presence.bind('pusher:member_removed', (member) => {
-        console.log('User left:', member);
-      });
-
-
-    };
 
     onMounted(() => {
       fetchUserId();
       fetchUserData('');
-      initializePusher();
     });
 
     onUpdated(() => {

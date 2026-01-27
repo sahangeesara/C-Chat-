@@ -5,11 +5,13 @@ use Illuminate\Support\Facades\Broadcast;
 
 Broadcast::routes(['middleware' => ['auth:api']]);
 
-Broadcast::channel('user.{userId}', function ($user, $userId) {
-    if ($user->id === $userId) {
-        return array('name' => $user->name);
-    }
+Broadcast::channel('chat.{userId}', function ($user, $userId) {
+    return (int) $user->id === (int) $userId;
 });
+Broadcast::channel('chat.{userId}', function ($user, $userId) {
+    return (int) $user->id === (int) $userId;
+});
+
 // Private chat between two users
 Broadcast::channel('chat.{toId}.{fromId}', function ($user, $toId, $fromId) {
     return (int) $user->id === (int) $toId

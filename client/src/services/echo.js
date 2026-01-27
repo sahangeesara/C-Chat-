@@ -1,31 +1,41 @@
 import Echo from 'laravel-echo'
 import Pusher from 'pusher-js'
-import { getToken } from '@/services/authsev' // wherever your token helper is
+import store from '@/store'
 
 window.Pusher = Pusher
 
-const echo = new Echo({
+export default new Echo({
     broadcaster: 'pusher',
 
-    key: process.env.VUE_APP_PUSHER_APP_KEY,
-    cluster: process.env.VUE_APP_PUSHER_APP_CLUSTER,
+    key: 'd48f36eb19647382a1d0',
 
-    wsHost: process.env.VUE_APP_PUSHER_HOST,
-    wsPort: process.env.VUE_APP_PUSHER_PORT,
+    cluster: 'mt1',   // 🔥 REQUIRED by pusher-js (even locally)
+
+    wsHost: '127.0.0.1',
+    wsPort: 6001,
 
     forceTLS: false,
     encrypted: false,
 
     disableStats: true,
-    enabledTransports: ['ws', 'wss'],
+    enabledTransports: ['ws'],
 
-    authEndpoint: 'http://127.0.0.1:8000/api/broadcasting/auth',
-
-    auth: {
-        headers: {
-            Authorization: `Bearer ${getToken()}`
+    authorizer: (channel) => ({
+        authorize: (socketId, callback) => {
+            fetch('http://127.0.0.1:8000/api/broadcasting/auth', {
+                method: 'POST',
+                headers: {
+                    Authorization: `Bearer ${store.getters.getToken}`,
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    socket_id: socketId,
+                    channel_name: channel.name
+                })
+            })
+                .then(res => res.json())
+                .then(data => callback(null, data))
+                .catch(err => callback(err))
         }
-    }
+    })
 })
-
-export default echo

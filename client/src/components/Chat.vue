@@ -13,12 +13,15 @@
 import echo from "@/services/echo";
 
 export default {
-  mounted() {
-    // The exact channel name matching backend:
-    const fromId = this.currentUserId;
-    const toId   = this.selectedUserId;
+  props: {
+    senderId: Number,
+    selectedUserId: Number,
+    currentUserId: Number,
+    body:String,
+  },
 
-    echo.private(`chat.${toId}.${fromId}`)
+  mounted() {
+    echo.private(`chat.${this.currentUserId}`)
         .listen('.chat.message', (e) => {
           console.log('Realtime message:', e);
 
@@ -31,12 +34,7 @@ export default {
         .error(err => {
           console.error('Echo error:', err);
         });
-  },
 
-  props: {
-    senderId: Number,      // ID of the other user
-    currentUserId: Number, // Authenticated user ID
-    body: String,          // Message content
   },
 
   computed: {
@@ -49,9 +47,11 @@ export default {
     badgeClass() {
       return this.isSender ? "sent" : "received";
     },
+    // selectedUserId() {
+    //   return Number(this.$route.params.userId);
+    // },
   },
 };
-
 </script>
 <style scoped>
 
