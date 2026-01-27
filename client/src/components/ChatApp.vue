@@ -154,11 +154,11 @@
 </template>
 
 <script>
-import { ref, onMounted, onUpdated, computed } from 'vue';
+import { ref, onMounted, onUpdated, computed,watch } from 'vue';
 import Chat from './Chat.vue';
 import { useStore } from 'vuex';
 import AllServiceService from '@/services/all-service';
-import echo from "@/services/echo";
+import echo from '@/services/echo'
 
 export default {
   components: { Chat },
@@ -306,30 +306,35 @@ export default {
 
 
     onMounted(() => {
-      fetchUserId();
-      fetchUserData('');
+      fetchUserId()
+      fetchUserData('')
+    })
 
-      echo.private(`chat.${currentUserId.value}`)
+// 🔥 subscribe ONLY after userId is loaded
+    watch(currentUserId, (id) => {
+      if (!id) return
+
+      console.log('Subscribing to chat:', id)
+
+      echo.private(`chat.${id}`)
           .listen('.chat.message', (e) => {
-            console.log('Realtime:', e);
-            console.log(selectedUser.value.id);
-            // only show messages for selected chat
+            console.log('Realtime:', e)
+
             if (
                 selectedUser.value &&
                 (e.from_id === selectedUser.value.id ||
                     e.to_id === selectedUser.value.id)
             ) {
-              console.log( e.to_id);
               chat.value.messages.push({
                 from_id: e.from_id,
                 to_id: e.to_id,
                 body: e.message,
                 created_at: e.created_at
-              });
+              })
             }
           })
-          .error(err => console.error(err));
-    });
+          .error(err => console.error('Echo error:', err))
+    })
 
     onUpdated(() => {
       scrollToBottom();

@@ -30,9 +30,6 @@
                           <div class=" float-lg-start">
                             <button type="submit" class="btn btn-primary">Change Password</button>
                           </div>
-                         
-                       
-                         
               </form>
           </div>
        </div>
@@ -45,64 +42,46 @@
   
     <script>
 
- import { toast } from "vue3-toastify";
- import axios from "axios";
- export default {
-   data() {
-    return {
-      error:[],
-        hide: true,
-       hide2: true,   
-    userData: {
-        email: '',
-        password:'',
-        password_confirmation:'',
+    import { toast } from "vue3-toastify";
+    import axios from "axios";
+
+    export default {
+      data() {
+        return {
+          hide: true,
+          hide2: true,
+          userData: {
+            email: '',
+            password: '',
+            password_confirmation: '',
+            resetToken: '',
+          },
+        };
+      },
+
+      mounted() {
+        this.userData.resetToken = this.$route.query.token;
+      },
+
+      methods: {
+        onSubmit() {
+          axios.post("http://localhost:8000/api/resetPassword", this.userData)
+              .then(() => {
+                toast("Done! Now login with new password", {
+                  autoClose: 1000,
+                  position: 'bottom-right',
+                });
+                this.$router.push('/');
+              })
+              .catch(error => {
+                toast(error.response.data.error, {
+                  autoClose: 1000,
+                  position: 'bottom-right',
+                });
+              });
+        },
       },
     };
-  },
-
-  methods: {
-    onSubmit  () {
-  toast("Wet.........................!", {
-    autoClose: 1000,
-    position: 'bottom-right',
-  });
-
-  axios.post("http://localhost:8000/api/resetPassword", this.userData)
-  .then((response) => {
-          this.handleResponse(response.data);
-        })
-     .catch(error => {
-      // Handle error
-      this.handleError(error);
-      
-    });
-},
-
-handleResponse  (response) {
-  toast("Done!, Now login with new Password", {
-    autoClose: 1000,
-    position: toast.POSITION.BOTTOM_RIGHT,
-  });
-
-  this.$router.push('/')
-},
-
-handleError (error) {
-  // Object.keys( error.response.data.errors).forEach((key) => {
-  //   error.value[key] = error.response.data.errors[key];
-  // });
-
-  toast(error.response.data.error, {
-    autoClose: 1000,
-    position: toast.POSITION.BOTTOM_RIGHT,
-  });
-},
-
-  },
-
-
- };
  </script>
     
    

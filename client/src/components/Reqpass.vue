@@ -4,17 +4,14 @@
       <div class="col-4"></div>
       <div
         class="card p-0 col-6 cardRed"
-        style="height: 210px !important; width: 500px"
-      >
+        style="height: 210px !important; width: 500px">
         <div class="card-header bg-primary cardRed" style="color: white">
           Send Email Reset Password
         </div>
         <div class="card-body bground">
           <form @submit.prevent="onSubmit" autocomplete="off">
             <div class="form-group d-lg-inline row">
-              <label for="exampleInputEmail1" class="col-sm-4 col-form-label"
-                >Email address :</label
-              >
+              <label for="exampleInputEmail1" class="col-sm-4 col-form-label">Email address :</label>
               <input
                 v-model="userData.email"
                 type="email"
@@ -31,7 +28,6 @@
               <button type="submit" class="btn btn-primary">
                 Send Password reset Email
               </button>
-
               &nbsp;&nbsp;
               <router-link to="/" class="btn btn-outline-primary">Sign In</router-link>
             </div>
@@ -42,10 +38,8 @@
     </div>
   </div>
 </template>
-  
-  
+
     <script>
-import Vue from "vue";
 import axios from "axios";
 import { toast } from "vue3-toastify";
 
@@ -112,4 +106,3 @@ h1 {
 </style>
     
   
- 
