@@ -3,7 +3,6 @@
 use App\Models\User;
 use Illuminate\Support\Facades\Broadcast;
 
-
 /**
  * Each user listens ONLY to their own inbox
  * Frontend: echo.private(`chat.${userId}`)
