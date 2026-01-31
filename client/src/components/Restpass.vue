@@ -20,8 +20,8 @@
                        </div>
                           <br>
                           <div class="form-group row d-lg-inline">
-                              <label for="exampleInputPassword1">Comform Password :</label>
-                              <input v-bind:type="hide2 ? 'password' : 'text'" class="form-control" name="password_confirmation" id="exampleInputPassword1" v-model="userData.password_confirmation" placeholder="Comform Password" required>
+                              <label for="exampleInputPassword2">Comform Password :</label>
+                              <input v-bind:type="hide2 ? 'password' : 'text'" class="form-control" name="password_confirmation" id="exampleInputPassword2" v-model="userData.password_confirmation" placeholder="Comform Password" required>
                               <b @click="hide2 = !hide2" :aria-label="'Hide password'" :aria-pressed="hide2">
                                      <i class="material-icons">{{ hide2 ? 'visibility_off' : 'visibility' }}</i>
                              </b> 

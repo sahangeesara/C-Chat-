@@ -3,6 +3,7 @@
 use App\Events\ChatEvent;
 use App\Http\Controllers\api\UserController;
 use App\Http\Controllers\AuthController;
+use App\Http\Controllers\CallController;
 use App\Http\Controllers\ChangePasswordController;
 use App\Http\Controllers\ChatController;
 use App\Http\Controllers\ResetPasswordController;
@@ -42,6 +43,12 @@ Route::middleware(['auth:api'])->group(function () {
         broadcast(new ChatEvent("HELLO REALTIME", auth()->id(), 2));
         return 'sent';
     });
+
+    // routes/api.php
+    Route::post('/call/start', [CallController::class, 'start']);
+    Route::post('/call/answer', [CallController::class, 'answer']);
+    Route::post('/call/ice', [CallController::class, 'ice']);
+
 
 });
 

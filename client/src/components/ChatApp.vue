@@ -84,15 +84,16 @@
             <button class="btn btn-sm btn-outline-primary">
               <i class="bi bi-camera-video"></i>
             </button>
-            <button class="btn btn-sm btn-outline-primary">
+            <button class="btn btn-sm btn-outline-primary" @click="startCall(selectedUser.id)">
               <i class="bi bi-telephone fs-6"></i>
             </button>
           </div>
         </div>
 
+        <!-- ADD COLOR -->
         <!-- Chat Messages -->
         <div
-            class="flex-grow-1 overflow-auto p-3 bg-success bg-opacity-10"
+            class="flex-grow-1 overflow-auto p-3 bg-light bg-opacity-10"
             ref="chatContainer"
             style="height: 0;"
         >
@@ -100,17 +101,18 @@
                class="mb-2 d-flex"
                :class="{ 'justify-content-end': msg.from_id === currentUserId }"
           >
+            <!-- color message-->
             <div
                 class="p-2 rounded-3"
                 :class="{
                 'bg-primary text-white': msg.from_id === currentUserId,
-                'bg-white': msg.from_id !== currentUserId
+                'bg-success text-white': msg.from_id !== currentUserId
               }"
                 style="max-width: 70%;"
             >
               {{ msg.body }}
               <div class="text-end" style="font-size: 0.7rem; margin-top: 2px;">
-                <span style="color: rgba(3,1,1,0.7) !important;"> {{ new Date(msg.created_at).toLocaleDateString([], {month: '2-digit', day:'2-digit', year: 'numeric'}) }}</span>
+                <span style="color: rgba(245,245,245,0.7) !important;"> {{ new Date(msg.created_at).toLocaleDateString([], {month: '2-digit', day:'2-digit', year: 'numeric'}) }}</span>
                 <span v-if="msg.from_id === currentUserId" class="ms-1">
                   <i class="bi bi-check2-all text-info"></i>
                 </span>
@@ -159,6 +161,7 @@ import Chat from './Chat.vue';
 import { useStore } from 'vuex';
 import AllServiceService from '@/services/all-service';
 import echo from '@/services/echo'
+import CallService from "@/services/CallService";
 
 export default {
   components: { Chat },
@@ -171,10 +174,13 @@ export default {
     const selectedUser = ref(null);
     let currentUserId = ref(null);
     let currentUserName = ref(null);
-
+    const pc = ref(null)
+    const partnerId = ref(null)
+    const remoteAudio = ref(null)
     const store = useStore();
     const token = computed(() => store.getters.getToken);
-
+  const iceQueue = ref([])
+  const remoteDescriptionSet = ref(false)
     // Get current date in DD/MM/YYYY format
     const currentDate = computed(() => {
       const today = new Date();
@@ -211,6 +217,15 @@ export default {
         userView.value = [];
       }
     };
+
+    const startCall = async (toId) => {
+      partnerId.value = toId
+
+      const offer = await pc.value.createOffer()
+      await pc.value.setLocalDescription(offer)
+
+      await CallService.startCall(toId, offer)
+    }
 
     const fetchUserId = async () => {
       try {
@@ -304,17 +319,34 @@ export default {
       }
     };
 
+    const initWebRTC = async () => {
+      pc.value = new RTCPeerConnection({
+        iceServers: [{ urls: 'stun:stun.l.google.com:19302' }]
+      })
+
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
+      stream.getTracks().forEach(track => pc.value.addTrack(track, stream))
+
+      pc.value.ontrack = (e) => {
+        remoteAudio.value.srcObject = e.streams[0]
+      }
+
+      pc.value.onicecandidate = (e) => {
+        if (e.candidate && partnerId.value) {
+          CallService.sendIce(partnerId.value, e.candidate)
+        }
+      }
+    }
 
     onMounted(() => {
       fetchUserId()
       fetchUserData('')
+      initWebRTC()
     })
 
 // 🔥 subscribe ONLY after userId is loaded
     watch(currentUserId, (id) => {
       if (!id) return
-
-      console.log('Subscribing to chat:', id)
 
       echo.private(`chat.${id}`)
           .listen('.chat.message', (e) => {
@@ -334,6 +366,27 @@ export default {
             }
           })
           .error(err => console.error('Echo error:', err))
+
+          //call service
+      // echo.private(`call.${id}`)
+      //     .listen('.incoming.call', async (e) => {
+      //       console.log('📞 Incoming call from', e.fromId)
+
+      //       partnerId.value = e.fromId
+  
+      //      await pc.value.setRemoteDescription(
+      //       new RTCSessionDescription(e.offer)
+      //     )
+
+      //       const answer = await pc.value.createAnswer()
+      //       await pc.value.setLocalDescription(answer)
+
+      //       CallService.answerCall(e.fromId, answer)
+      //     })
+      //     .listen('.ice.candidate', (e) => {
+      //       pc.value.addIceCandidate(e.candidate)
+      //     })
+
     })
 
     onUpdated(() => {
@@ -356,7 +409,8 @@ export default {
       searchUser,
       getMessage,
       selectUserprofile,
-      userId
+      userId,
+      startCall
     };
   }
 };

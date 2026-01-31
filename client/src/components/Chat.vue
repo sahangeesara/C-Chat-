@@ -10,7 +10,6 @@
 </template>
 
 <script>
-import echo from "@/services/echo";
 
 export default {
   props: {
@@ -30,9 +29,6 @@ export default {
     badgeClass() {
       return this.isSender ? "sent" : "received";
     },
-    // selectedUserId() {
-    //   return Number(this.$route.params.userId);
-    // },
   },
 };
 </script>
@@ -57,14 +53,14 @@ export default {
 
 .sent {
   align-self: flex-end; /* Moves sent messages to the right */
-  background-color: #007bff;
-  color: white;
+  background-color: #ffffff;
+  color: #0bb132;
   text-align: right; /* Ensures text is aligned properly */
 }
 
 .received {
   align-self: flex-start; /* Keeps received messages on the left */
-  background-color: #f1f1f1;
+  background-color: rgba(27, 252, 27, 0.7);
   color: black;
   text-align: left;
 }
@@ -80,7 +76,7 @@ export default {
   color: rgba(123, 248, 248, 0.7);
 }
 .received-message{
-  color: rgba(238, 18, 18, 0.9);
+  color: rgba(255, 255, 255, 0.9);
 }
 
 /* Small adjustments */
@@ -91,7 +87,7 @@ export default {
 
 .timestamp {
   font-size: 10px;
-  color: #ff0000;
+  color: rgb(11, 46, 234);
   align-self: flex-end;
 }
 

@@ -11,12 +11,8 @@
 </template>
 
 <script>
-import Vue from 'vue';
-import ChatApp from './components/ChatApp.vue';
-import Login from './components/Login.vue';
-import { mapGetters } from "vuex";
-import store from "./store"; 
 
+import { mapGetters } from "vuex";
 
 export default {
 
@@ -33,7 +29,7 @@ export default {
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   text-align: center;
-  color: #2c3e50;
+  color: #f60303;
   margin-top: 50px;
   
 }
