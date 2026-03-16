@@ -137,13 +137,6 @@ Main features include:
 * Instant message delivery
 * Live online communication
 
-*(You can add screenshots here)*
-
-```
-![Chat UI](screenshot.png)
-```
-
----
 
 ## 👨‍💻 Developer
 
