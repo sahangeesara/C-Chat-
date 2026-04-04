@@ -7,9 +7,17 @@ module.exports = defineConfig({
     host: '127.0.0.1',
     port: 8080,
     allowedHosts: 'all',
+    // Keep dev websocket local even if the page is opened via tunnel URLs.
     client: {
-      webSocketURL: 'wss://99b2699b065bfed9903ad1c111fa1f8f.loophole.site/ws'
-    }
+      webSocketURL: {
+        protocol: 'ws',
+        hostname: '127.0.0.1',
+        port: 8080,
+        pathname: '/ws'
+      }
+    },
+    hot: false,
+    liveReload: false
   },
   configureWebpack: {
     resolve: {

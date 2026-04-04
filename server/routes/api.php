@@ -30,6 +30,7 @@ Route::middleware(['auth:api'])->group(function () {
 
     Route::get('searchUser/{name?}', [UserController::class, 'searchUser']); // search by name
     Route::get('getUser/{id}', [UserController::class, 'show'])->whereNumber('id');
+    Route::post('user/update-profile', [UserController::class, 'updateProfile']);
     // Backward compatibility: frontend search still calls /api/getUser/{name}
     Route::get('getUser/{name}', [UserController::class, 'searchUser'])
         ->where('name', '^(?!\\d+$).+');

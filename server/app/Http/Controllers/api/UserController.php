@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 
 use App\Models\User;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Storage;
 
 class UserController extends Controller
 {
@@ -56,6 +57,45 @@ class UserController extends Controller
         }
 
         return response()->json($member);
+    }
+
+    public function updateProfile(Request $request)
+    {
+        if ($request->hasFile('image') && !$request->file('image')->isValid()) {
+            return response()->json([
+                'message' => 'The image failed to upload.',
+                'errors' => [
+                    'image' => [$request->file('image')->getErrorMessage()],
+                ],
+            ], 422);
+        }
+
+        $request->validate([
+            'name' => 'required|string|min:2|max:255',
+            'image' => 'nullable|image|max:2048',
+        ]);
+
+        $user = $request->user();
+
+        if ($request->hasFile('image')) {
+            if (!empty($user->profile_photo_path)) {
+                Storage::disk('public')->delete($user->profile_photo_path);
+            }
+
+            $user->profile_photo_path = $request->file('image')->store('profiles', 'public');
+        }
+
+        $user->name = $request->input('name');
+        $user->save();
+
+        return response()->json([
+            'message' => 'Profile updated successfully',
+            'user' => array_merge($user->toArray(), [
+                'profile_photo_url' => $user->profile_photo_path
+                    ? asset('storage/' . ltrim($user->profile_photo_path, '/'))
+                    : null,
+            ]),
+        ]);
     }
 
 

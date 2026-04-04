@@ -1,8 +1,9 @@
 import axios from 'axios';
-import store from '@/store'; // ✅ Import Vuex store
+import store from '@/store';
 
-const API_BASE_URL = 'http://localhost:8000/api';
-// const API_BASE_URL = 'http://192.168.8.182:8000/api';
+const API_BASE_URL = process.env.VUE_APP_API_BASE_URL
+    ? `${process.env.VUE_APP_API_BASE_URL.replace(/\/$/, '')}/api`
+    : 'http://127.0.0.1:8000/api';
 
 export default class AllServiceService {
     constructor() {
@@ -18,21 +19,42 @@ export default class AllServiceService {
                 return config;
             }
 
-            const token = store.getters['auth/getToken'];
+            // Let the browser set multipart boundaries for FormData uploads.
+            if (typeof FormData !== 'undefined' && config.data instanceof FormData) {
+                delete config.headers['Content-Type'];
+                delete config.headers['content-type'];
+            }
+
+            const token =
+                store.getters['auth/getToken'] ||
+                store.getters.getToken ||
+                localStorage.getItem('token');
+
             if (token) {
                 config.headers.Authorization = `Bearer ${token}`;
             }
 
             return config;
         });
+
+        this.http.interceptors.response.use(
+            (response) => response,
+            (error) => {
+                if (error?.response?.status === 401) {
+                    store.dispatch('auth/logout');
+                    if (window.location.hash !== '#/') {
+                        window.location.hash = '#/';
+                    }
+                }
+
+                return Promise.reject(error);
+            }
+        );
     }
 
     async searchUser(query, page = 1) {
         const rawQuery = (query ?? '').toString().trim();
 
-        if (rawQuery.length > 0 && rawQuery.length < 2) {
-            return { data: [] };
-        }
 
         const endpointAttempts = rawQuery
             ? [
@@ -57,11 +79,13 @@ export default class AllServiceService {
             ]
             : [
                 {
-                    url: '/getUser',
+                    // Use searchable list endpoint as default.
+                    url: '/searchUser',
                     params: { page },
                 },
                 {
-                    url: '/searchUser',
+                    // Keep legacy fallback.
+                    url: '/getUser',
                     params: { page },
                 },
             ];
@@ -71,6 +95,17 @@ export default class AllServiceService {
         for (const attempt of endpointAttempts) {
             try {
                 const response = await this.http.get(attempt.url, { params: attempt.params });
+
+                // /api/getUser may return auth user object, not list payload.
+                if (
+                    attempt.url === '/getUser' &&
+                    response?.data &&
+                    !Array.isArray(response.data) &&
+                    !Array.isArray(response?.data?.data)
+                ) {
+                    continue;
+                }
+
                 return response.data;
             } catch (error) {
                 const isNotFound = error?.response?.status === 404;
@@ -170,6 +205,16 @@ export default class AllServiceService {
             throw lastError || new Error('Unable to send message with available payload formats.');
         } catch (error) {
             console.error('Error sending message:', error.response?.data || error.message);
+            throw error;
+        }
+    }
+
+    async updateProfile(formData) {
+        try {
+            const response = await this.http.post('/user/update-profile', formData);
+            return response.data;
+        } catch (error) {
+            console.error('Error updating profile:', error.response?.data || error.message);
             throw error;
         }
     }
