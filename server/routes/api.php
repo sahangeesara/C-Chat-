@@ -17,7 +17,7 @@ Route::post('signup', [AuthController::class,'signup']);
 Route::post('sendPasswordResetLink', [ResetPasswordController::class,'sendEmail']);
 Route::post('resetPassword', [ChangePasswordController::class,'process']);
 
-Route::middleware(['auth:api'])->group(function () {
+Route::middleware(['auth:api', 'last.seen'])->group(function () {
 
     Route::post('logout', [AuthController::class,'logout']);
     Route::post('refresh', [AuthController::class,'refresh']);
@@ -30,6 +30,7 @@ Route::middleware(['auth:api'])->group(function () {
 
     Route::get('searchUser/{name?}', [UserController::class, 'searchUser']); // search by name
     Route::get('getUser/{id}', [UserController::class, 'show'])->whereNumber('id');
+    Route::get('user-status/{id}', [UserController::class, 'status'])->whereNumber('id');
     Route::post('user/update-profile', [UserController::class, 'updateProfile']);
     // Backward compatibility: frontend search still calls /api/getUser/{name}
     Route::get('getUser/{name}', [UserController::class, 'searchUser'])
@@ -57,6 +58,9 @@ Route::middleware(['auth:api'])->group(function () {
     Route::post('/call/start', [CallController::class, 'start']);
     Route::post('/call/answer', [CallController::class, 'answer']);
     Route::post('/call/ice', [CallController::class, 'ice']);
+    Route::post('/call/end', [CallController::class, 'end']);
+    Route::get('/call/history', [CallController::class, 'history']);
+    Route::get('/call/{id}', [CallController::class, 'show'])->whereNumber('id');
 
 
 });

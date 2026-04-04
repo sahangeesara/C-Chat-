@@ -19,7 +19,8 @@ class CallAnswered implements ShouldBroadcast
      */
     public function __construct(   public $fromId,
                                    public $toId,
-                                   public $sdp)
+                                   public $sdp,
+                                   public $callId = null)
     {
 
     }

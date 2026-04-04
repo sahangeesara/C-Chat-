@@ -15,12 +15,14 @@ class IncomingCall implements ShouldBroadcast
     public $fromId;
     public $toId;
     public $offer;
+    public $callId;
 
-    public function __construct($fromId, $toId, $offer)
+    public function __construct($fromId, $toId, $offer, $callId = null)
     {
         $this->fromId = $fromId;
         $this->toId   = $toId;
         $this->offer  = $offer;
+        $this->callId = $callId;
     }
 
     public function broadcastOn()

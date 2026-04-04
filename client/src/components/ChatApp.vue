@@ -101,7 +101,7 @@
         </div>
       </div>
       <!-- Right Chat Area - Only shown when user is selected -->
-      <div class="chat-main" v-if="selectedUser && showChatPane">
+      <div class="chat-main" v-if="selectedUser && showChatPane && !isDetailsOpen">
         <!-- Chat Header -->
         <div class="p-3 border-bottom border-dark d-flex justify-content-between align-items-center" style="background-color: #202c33; color: #e9edef;">
           <div class="d-flex align-items-center">
@@ -126,15 +126,45 @@
             </div>
             <div style="cursor: pointer;" @click="selectUserprofile(selectedUser)">
               <h6 class="mb-0">Chat with {{ selectedUser.name }}</h6>
-              <small style="color: #8696a0;">Online</small>
+              <small style="color: #8696a0;">{{ getUserPresenceText(selectedUser) }}</small>
             </div>
           </div>
           <div class="d-flex gap-2">
+            <button
+              v-if="selectedCallHistory.length"
+              class="btn btn-sm btn-outline-secondary"
+              @click="openCallHistoryDetails(selectedCallHistory[0])"
+              title="View last call"
+            >
+              <i class="bi bi-clock-history"></i>
+            </button>
             <button class="btn btn-sm btn-outline-primary">
               <i class="bi bi-camera-video"></i>
             </button>
             <button class="btn btn-sm btn-outline-primary" @click="startCall(selectedUser.id)">
               <i class="bi bi-telephone fs-6"></i>
+            </button>
+            <button
+              v-if="partnerId && sameUserId(partnerId, selectedUser.id)"
+              class="btn btn-sm btn-outline-danger"
+              @click="endCurrentCall"
+            >
+              <i class="bi bi-telephone-x fs-6"></i>
+            </button>
+          </div>
+        </div>
+
+        <div v-if="selectedCallHistory.length" class="call-history-strip border-bottom border-dark">
+          <small class="text-muted d-block mb-1">Recent calls</small>
+          <div class="call-history-list">
+            <button
+              v-for="(item, index) in selectedCallHistory.slice(0, 3)"
+              :key="item.id || `${item.started_at}-${index}`"
+              type="button"
+              class="call-history-item"
+              @click="openCallHistoryDetails(item)"
+            >
+              {{ formatCallHistoryItem(item) }}
             </button>
           </div>
         </div>
@@ -175,10 +205,21 @@
 
         <!-- Message Input -->
         <div class="p-3 border-top border-dark" style="background-color: #202c33;">
-          <div class="input-group">
-            <button class="btn btn-outline-secondary" type="button">
+          <div class="input-group position-relative">
+            <button class="btn btn-outline-secondary" type="button" @click="toggleEmojiPicker">
               <i class="bi bi-emoji-smile"></i>
             </button>
+            <div v-if="showEmojiPicker" class="emoji-picker">
+              <button
+                v-for="emoji in emojiList"
+                :key="emoji"
+                type="button"
+                class="emoji-item"
+                @click="appendEmoji(emoji)"
+              >
+                {{ emoji }}
+              </button>
+            </div>
             <input
                 type="text"
                 class="form-control rounded-pill mx-2"
@@ -197,7 +238,7 @@
         </div>
       </div>
       <!-- Empty State when no user is selected -->
-      <div class="chat-main justify-content-center align-items-center" style="background-color: #0b141a; color: #e9edef;" v-else-if="showChatPane">
+      <div class="chat-main justify-content-center align-items-center" style="background-color: #0b141a; color: #e9edef;" v-else-if="showChatPane && !isDetailsOpen">
         <div class="text-center p-5">
           <i class="bi bi-people-fill" style="font-size: 3rem; color: #ccc;"></i>
           <h3 class="mt-3 text-muted">Select a user to start chatting</h3>
@@ -276,6 +317,46 @@
           </template>
         </div>
       </div>
+
+      <div v-if="showCallHistoryDetails" class="settings-overlay" @click.self="closeCallHistoryDetails">
+        <div class="settings-card">
+          <div class="d-flex justify-content-between align-items-center mb-3">
+            <h5 class="mb-0">Call History Details</h5>
+            <button type="button" class="btn btn-sm btn-outline-secondary" @click="closeCallHistoryDetails">
+              <i class="bi bi-x-lg"></i>
+            </button>
+          </div>
+
+          <div v-if="activeCallHistoryItem" class="user-details-grid">
+            <div>
+              <small class="text-muted d-block">Direction</small>
+              <div>{{ activeCallHistoryItem.direction || 'outgoing' }}</div>
+            </div>
+            <div>
+              <small class="text-muted d-block">Status</small>
+              <div>{{ (activeCallHistoryItem.status || 'ended').toString().replace(/_/g, ' ') }}</div>
+            </div>
+            <div>
+              <small class="text-muted d-block">Started</small>
+              <div>{{ formatCallDetailDateTime(activeCallHistoryItem.started_at) || 'N/A' }}</div>
+            </div>
+            <div>
+              <small class="text-muted d-block">Ended</small>
+              <div>{{ formatCallDetailDateTime(activeCallHistoryItem.ended_at) || 'N/A' }}</div>
+            </div>
+            <div>
+              <small class="text-muted d-block">Duration</small>
+              <div>{{ formatCallDuration(activeCallHistoryItem.duration_seconds) }}</div>
+            </div>
+            <div v-if="activeCallHistoryItem.meta">
+              <small class="text-muted d-block">Meta</small>
+              <pre class="call-history-meta mb-0">{{ formatCallMeta(activeCallHistoryItem.meta) }}</pre>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <audio ref="remoteAudio" autoplay style="display: none;"></audio>
     </div>
   </div>
 </template>
@@ -311,6 +392,10 @@ export default {
     const isUserDetailsLoading = ref(false)
     const userDetails = ref(null)
     const userDetailsError = ref('')
+    const showEmojiPicker = ref(false)
+    const showCallHistoryDetails = ref(false)
+    const activeCallHistoryItem = ref(null)
+    const emojiList = ['😀', '😂', '😍', '😎', '😊', '😁', '🤔', '😢', '👍', '🙏', '🔥', '🎉', '❤️', '💬', '✅', '🙌']
     const currentUserPhoto = ref('')
     const defaultSettings = {
       accentColor: '#005c4b'
@@ -327,6 +412,8 @@ export default {
     const pc = ref(null)
     const partnerId = ref(null)
     const remoteAudio = ref(null)
+    const callStartedAt = ref(null)
+    const selectedCallHistory = ref([])
     const activeChannelNames = ref([])
     const knownChatUserIds = ref([])
     const latestProfileRequestId = ref(0)
@@ -625,6 +712,7 @@ export default {
 
     const showSidebarPane = computed(() => !isMobileView.value || activeMobilePane.value === 'list');
     const showChatPane = computed(() => !isMobileView.value || activeMobilePane.value === 'chat');
+    const isDetailsOpen = computed(() => showUserDetails.value || showCallHistoryDetails.value)
 
     // Without a query, show chat contacts only. With a query, search across fetched users.
     const filteredUsers = computed(() => {
@@ -733,12 +821,87 @@ export default {
     };
 
     const startCall = async (toId) => {
+      if (!toId || !pc.value) {
+        return
+      }
+
       partnerId.value = toId
+      callStartedAt.value = new Date().toISOString()
 
-      const offer = await pc.value.createOffer()
-      await pc.value.setLocalDescription(offer)
+      try {
+        const offer = await pc.value.createOffer()
+        await pc.value.setLocalDescription(offer)
+        await CallService.startCall(toId, offer)
+        await CallService.saveCallHistory({
+          user_id: toId,
+          direction: 'outgoing',
+          status: 'started',
+          started_at: callStartedAt.value,
+        })
+        await loadCallHistoryForUser(toId)
+      } catch (error) {
+        console.error('Call start failed:', error?.response?.data || error?.message || error)
+        await CallService.saveCallHistory({
+          user_id: toId,
+          direction: 'outgoing',
+          status: 'failed',
+          started_at: callStartedAt.value,
+          ended_at: new Date().toISOString(),
+        })
+      }
+    }
 
-      await CallService.startCall(toId, offer)
+    const endCurrentCall = async () => {
+      if (!partnerId.value) {
+        return
+      }
+
+      const activePartnerId = partnerId.value
+      const endedAt = new Date().toISOString()
+      const durationSeconds = callStartedAt.value
+        ? Math.max(0, Math.floor((new Date(endedAt).getTime() - new Date(callStartedAt.value).getTime()) / 1000))
+        : 0
+
+      try {
+        await CallService.endCall(activePartnerId)
+      } catch (error) {
+        console.warn('Call end request failed:', error?.response?.data || error?.message || error)
+      }
+
+      await CallService.saveCallHistory({
+        user_id: activePartnerId,
+        direction: 'outgoing',
+        status: 'ended',
+        started_at: callStartedAt.value || endedAt,
+        ended_at: endedAt,
+        duration_seconds: durationSeconds,
+      })
+
+      callStartedAt.value = null
+      partnerId.value = null
+
+      if (selectedUser.value?.id) {
+        const items = await loadCallHistoryForUser(selectedUser.value.id)
+        if (items.length) {
+          openCallHistoryDetails(items[0])
+        }
+      }
+    }
+
+    const loadCallHistoryForUser = async (targetUserId) => {
+      if (!targetUserId) {
+        selectedCallHistory.value = []
+        return []
+      }
+
+      try {
+        const items = await CallService.getCallHistory(targetUserId)
+        selectedCallHistory.value = items
+        return items
+      } catch {
+        selectedCallHistory.value = []
+        return []
+      }
     }
 
     const fetchUserId = async () => {
@@ -796,6 +959,60 @@ export default {
       return parsed.toLocaleDateString([], { month: 'short', day: '2-digit', year: 'numeric' })
     }
 
+    const getUserLastSeenValue = (user) => {
+      if (!user) {
+        return ''
+      }
+
+      return (
+        user.last_seen_at ||
+        user.lastSeenAt ||
+        user.last_seen ||
+        user.lastSeen ||
+        user.last_active_at ||
+        user.lastActiveAt ||
+        user.updated_at ||
+        user.updatedAt ||
+        ''
+      )
+    }
+
+    const isUserOnline = (user) => {
+      const status = user?.status
+      return Boolean(
+        user?.is_online === true ||
+        user?.online === true ||
+        user?.isOnline === true ||
+        status === 'online' ||
+        status === 'active'
+      )
+    }
+
+    const formatLastSeenDateOrTime = (value) => {
+      if (!value) {
+        return ''
+      }
+
+      const parsed = new Date(value)
+      if (Number.isNaN(parsed.getTime())) {
+        return ''
+      }
+
+      const datePart = parsed.toLocaleDateString([], { month: 'short', day: '2-digit', year: 'numeric' })
+      const timePart = parsed.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+      return `${datePart} ${timePart}`
+    }
+
+    const getUserPresenceText = (user) => {
+      if (isUserOnline(user)) {
+        return 'Online'
+      }
+
+      const lastSeenValue = getUserLastSeenValue(user)
+      const formatted = formatLastSeenDateOrTime(lastSeenValue)
+      return formatted ? `Last seen ${formatted}` : 'Offline'
+    }
+
     const normalizeMessagePayload = (payload, fallback = {}) => {
       const source = typeof payload?.message === 'object' && payload.message !== null ? payload.message : payload;
 
@@ -813,6 +1030,8 @@ export default {
       if (!message.value || !selectedUser.value) {
         return;
       }
+
+      showEmojiPicker.value = false
 
       const text = message.value.trim();
       if (!text) {
@@ -862,7 +1081,18 @@ export default {
       selectedUser.value = user;
       chat.value.messages = [];
       searchQuery.value = '';
+      showEmojiPicker.value = false
       getMessage(user.id);
+      loadCallHistoryForUser(user.id)
+
+      // Try to enrich selected user with fresh online/last-seen fields.
+      userId(user.id).then((profile) => {
+        if (!profile || !selectedUser.value || !sameUserId(selectedUser.value.id, user.id)) {
+          return
+        }
+
+        selectedUser.value = { ...selectedUser.value, ...profile }
+      })
 
       // Switch to chat pane on mobile after selecting a user.
       if (isMobileView.value) {
@@ -900,6 +1130,14 @@ export default {
       userDetails.value = profile
       isUserDetailsLoading.value = false
     };
+
+    const toggleEmojiPicker = () => {
+      showEmojiPicker.value = !showEmojiPicker.value
+    }
+
+    const appendEmoji = (emoji) => {
+      message.value = `${message.value || ''}${emoji}`
+    }
 
     const openCurrentUserDetails = async () => {
       showHeaderMenu.value = false
@@ -1021,6 +1259,84 @@ export default {
       return parsed.toLocaleDateString([], { month: '2-digit', day: '2-digit', year: 'numeric' });
     };
 
+    const formatCallHistoryItem = (item) => {
+      if (!item) {
+        return 'Call'
+      }
+
+      const direction = item.direction === 'incoming' ? 'Incoming' : 'Outgoing'
+      const status = (item.status || 'ended').toString().replace(/_/g, ' ')
+      const timeValue = item.started_at || item.ended_at
+      const parsed = timeValue ? new Date(timeValue) : null
+      const timeLabel = parsed && !Number.isNaN(parsed.getTime())
+        ? parsed.toLocaleString([], {
+          month: 'short',
+          day: '2-digit',
+          hour: '2-digit',
+          minute: '2-digit',
+        })
+        : ''
+
+      const durationSeconds = Number(item.duration_seconds || 0)
+      const durationLabel = durationSeconds > 0
+        ? ` (${Math.floor(durationSeconds / 60)}m ${durationSeconds % 60}s)`
+        : ''
+
+      return `${direction} ${status}${timeLabel ? ` ${timeLabel}` : ''}${durationLabel}`
+    }
+
+    const formatCallDetailDateTime = (value) => {
+      if (!value) {
+        return ''
+      }
+
+      const parsed = new Date(value)
+      if (Number.isNaN(parsed.getTime())) {
+        return ''
+      }
+
+      return parsed.toLocaleString([], {
+        month: 'short',
+        day: '2-digit',
+        year: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit',
+      })
+    }
+
+    const formatCallDuration = (seconds) => {
+      const safeSeconds = Number(seconds || 0)
+      if (!safeSeconds) {
+        return '0s'
+      }
+
+      const mins = Math.floor(safeSeconds / 60)
+      const secs = safeSeconds % 60
+      return mins > 0 ? `${mins}m ${secs}s` : `${secs}s`
+    }
+
+    const formatCallMeta = (meta) => {
+      if (typeof meta === 'string') {
+        return meta
+      }
+
+      try {
+        return JSON.stringify(meta, null, 2)
+      } catch {
+        return ''
+      }
+    }
+
+    const openCallHistoryDetails = (item) => {
+      activeCallHistoryItem.value = item || null
+      showCallHistoryDetails.value = Boolean(item)
+    }
+
+    const closeCallHistoryDetails = () => {
+      showCallHistoryDetails.value = false
+      activeCallHistoryItem.value = null
+    }
+
     const normalizeId = (value) => {
       const numeric = Number(value);
       return Number.isNaN(numeric) ? value : numeric;
@@ -1114,6 +1430,120 @@ export default {
           .error(err => console.error('Echo private error:', err));
     };
 
+    const toRTCDescription = (payload, fallbackType) => {
+      if (!payload) {
+        return null
+      }
+
+      if (typeof payload === 'string') {
+        return { type: fallbackType, sdp: payload }
+      }
+
+      if (payload.type && payload.sdp) {
+        return payload
+      }
+
+      if (payload.sdp) {
+        return { type: fallbackType, sdp: payload.sdp }
+      }
+
+      return null
+    }
+
+    const subscribeToCallEvents = (authUserId) => {
+      if (!authUserId) {
+        return
+      }
+
+      const channelName = `call.${authUserId}`
+      if (!activeChannelNames.value.includes(channelName)) {
+        activeChannelNames.value = [...activeChannelNames.value, channelName]
+      }
+
+      echo.private(channelName)
+        .listen('.incoming.call', async (event) => {
+          const fromId = event?.fromId || event?.from_id
+          const offer = toRTCDescription(event?.offer || event?.sdp, 'offer')
+          if (!fromId || !offer || !pc.value) {
+            return
+          }
+
+          partnerId.value = fromId
+          callStartedAt.value = new Date().toISOString()
+
+          try {
+            await pc.value.setRemoteDescription(new RTCSessionDescription(offer))
+            const answer = await pc.value.createAnswer()
+            await pc.value.setLocalDescription(answer)
+            await CallService.answerCall(fromId, answer)
+            await CallService.saveCallHistory({
+              user_id: fromId,
+              direction: 'incoming',
+              status: 'answered',
+              started_at: callStartedAt.value,
+            })
+
+            if (selectedUser.value && sameUserId(selectedUser.value.id, fromId)) {
+              const items = await loadCallHistoryForUser(fromId)
+              if (items.length) {
+                openCallHistoryDetails(items[0])
+              }
+            }
+          } catch (error) {
+            console.error('Incoming call handling failed:', error?.response?.data || error?.message || error)
+            await CallService.saveCallHistory({
+              user_id: fromId,
+              direction: 'incoming',
+              status: 'failed',
+              started_at: callStartedAt.value,
+              ended_at: new Date().toISOString(),
+            })
+          }
+        })
+        .listen('.ice.candidate', async (event) => {
+          if (!event?.candidate || !pc.value) {
+            return
+          }
+
+          try {
+            await pc.value.addIceCandidate(event.candidate)
+          } catch (error) {
+            console.warn('Failed to apply ICE candidate:', error)
+          }
+        })
+        .listen('.call.ended', async (event) => {
+          const endedBy = event?.fromId || event?.from_id || partnerId.value
+          if (!endedBy) {
+            return
+          }
+
+          const endedAt = new Date().toISOString()
+          const durationSeconds = callStartedAt.value
+            ? Math.max(0, Math.floor((new Date(endedAt).getTime() - new Date(callStartedAt.value).getTime()) / 1000))
+            : 0
+
+          await CallService.saveCallHistory({
+            user_id: endedBy,
+            direction: 'incoming',
+            status: 'ended',
+            started_at: callStartedAt.value || endedAt,
+            ended_at: endedAt,
+            duration_seconds: durationSeconds,
+          })
+
+          if (selectedUser.value && sameUserId(selectedUser.value.id, endedBy)) {
+            const items = await loadCallHistoryForUser(endedBy)
+            if (items.length) {
+              openCallHistoryDetails(items[0])
+            }
+          }
+
+          callStartedAt.value = null
+          partnerId.value = null
+        })
+        .error((err) => console.error('Echo call private error:', err))
+    }
+
     const initWebRTC = async () => {
       try {
         pc.value = new RTCPeerConnection({
@@ -1153,12 +1583,14 @@ export default {
       fetchUserId()
       fetchUserData('')
       initWebRTC()
+      loadCallHistoryForUser(null)
     })
 
     watch(currentUserId, (id) => {
       if (!id) return
 
       subscribeToRealtimeMessages(id)
+      subscribeToCallEvents(id)
 
           //call service
       // echo.private(`call.${id}`)
@@ -1221,14 +1653,19 @@ export default {
       showSettings,
       showHeaderMenu,
       showUserDetails,
+      showCallHistoryDetails,
+      activeCallHistoryItem,
       isUserDetailsLoading,
       userDetails,
       userDetailsError,
+      showEmojiPicker,
+      emojiList,
       currentDate,
       filteredUsers,
       visibleUsers,
       showSidebarPane,
       showChatPane,
+      isDetailsOpen,
       isCurrentUserMessage,
       sendMessage,
       selectUser,
@@ -1243,12 +1680,25 @@ export default {
       searchUser,
       getMessage,
       selectUserprofile,
+      toggleEmojiPicker,
+      appendEmoji,
       openCurrentUserDetails,
       closeUserDetails,
       userId,
       startCall,
+      endCurrentCall,
       formatMessageDate,
-      formatProfileDate
+      formatProfileDate,
+      getUserPresenceText,
+      selectedCallHistory,
+      formatCallHistoryItem,
+      formatCallDetailDateTime,
+      formatCallDuration,
+      formatCallMeta,
+      openCallHistoryDetails,
+      closeCallHistoryDetails,
+      partnerId,
+      sameUserId
     };
   }
 };
@@ -1367,6 +1817,70 @@ html, body {
   white-space: pre-wrap;
   text-align: justify;
   text-justify: inter-word;
+}
+
+.emoji-picker {
+  position: absolute;
+  bottom: 46px;
+  left: 0;
+  background: #1f2c33;
+  border: 1px solid #2f3b43;
+  border-radius: 10px;
+  padding: 8px;
+  display: grid;
+  grid-template-columns: repeat(8, 1fr);
+  gap: 6px;
+  z-index: 200;
+}
+
+.emoji-item {
+  border: 0;
+  background: transparent;
+  color: #e9edef;
+  border-radius: 6px;
+  line-height: 1;
+  padding: 4px;
+  font-size: 1.1rem;
+}
+
+.emoji-item:hover {
+  background: #2f3b43;
+}
+
+.call-history-strip {
+  background: #1b2730;
+  color: #e9edef;
+  padding: 8px 12px;
+}
+
+.call-history-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.call-history-item {
+  font-size: 0.75rem;
+  background: #263843;
+  border: 0;
+  color: #e9edef;
+  cursor: pointer;
+  border-radius: 999px;
+  padding: 2px 8px;
+}
+
+.call-history-item:hover {
+  background: #32505f;
+}
+
+.call-history-meta {
+  white-space: pre-wrap;
+  word-break: break-word;
+  background: #0f1b21;
+  color: #c8d4db;
+  border-radius: 8px;
+  padding: 8px;
+  font-size: 0.75rem;
 }
 
 

@@ -30,8 +30,10 @@ class AuthController extends Controller
         $credentials = request(['email', 'password']);
 
         if (! $token = Auth::attempt($credentials)) {
-            return response()->json(['error' => 'Email or Password does \'t exit'], 401);
+            return response()->json(['error' => 'Email or password does not exist'], 401);
         }
+
+        Auth::user()?->touchLastSeen();
 
         return $this->respondWithToken($token);
     }
@@ -49,6 +51,8 @@ class AuthController extends Controller
      */
     public function me()
     {
+        Auth::user()?->touchLastSeen();
+
         return response()->json([
             'user' => Auth::user(),
             'token' => request()->bearerToken() // ✅ Check if token is received
@@ -61,6 +65,7 @@ class AuthController extends Controller
      */
     public function logout()
     {
+        Auth::user()?->touchLastSeen();
         Auth::logout();
 
         return response()->json(['message' => 'Successfully logged out']);

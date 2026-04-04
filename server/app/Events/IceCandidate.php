@@ -19,7 +19,8 @@ class IceCandidate implements ShouldBroadcast
      */
     public function __construct(public $fromId,
                                 public $toId,
-                                public $candidate)
+                                 public $candidate,
+                                 public $callId = null)
     {
 
     }

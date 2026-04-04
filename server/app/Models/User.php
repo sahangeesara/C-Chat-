@@ -15,6 +15,11 @@ class User extends Authenticatable implements JWTSubject
 
 
     protected $table = 'users';
+    protected $appends = [
+        'profile_photo_url',
+        'is_online',
+        'last_seen_human',
+    ];
     /**
      * The attributes that are mass assignable.
      *
@@ -26,6 +31,7 @@ class User extends Authenticatable implements JWTSubject
         'email',
         'password',
         'profile_photo_path',
+        'last_seen_at',
     ];
 
     /**
@@ -45,8 +51,37 @@ class User extends Authenticatable implements JWTSubject
      */
     protected $casts = [
         'email_verified_at' => 'datetime',
+        'last_seen_at' => 'datetime',
         'password' => 'hashed',
     ];
+
+    public function getProfilePhotoUrlAttribute(): ?string
+    {
+        return $this->profile_photo_path
+            ? asset('storage/' . ltrim($this->profile_photo_path, '/'))
+            : null;
+    }
+
+    public function getIsOnlineAttribute(): bool
+    {
+        if (!$this->last_seen_at) {
+            return false;
+        }
+
+        return $this->last_seen_at->greaterThanOrEqualTo(now()->subMinutes(2));
+    }
+
+    public function getLastSeenHumanAttribute(): ?string
+    {
+        return $this->last_seen_at?->diffForHumans();
+    }
+
+    public function touchLastSeen(): void
+    {
+        $this->forceFill([
+            'last_seen_at' => now(),
+        ])->saveQuietly();
+    }
 
       public function getJWTIdentifier()
     {

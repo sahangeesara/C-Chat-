@@ -17,8 +17,11 @@ Broadcast::channel('chat.{userId}', function ($user, $userId) {
  */
 Broadcast::channel('presence-online', function (User $user) {
     return [
-        'id'   => $user->id,
+        'id' => $user->id,
         'name' => $user->name,
+        'profile_photo_url' => $user->profile_photo_url,
+        'last_seen_at' => $user->last_seen_at?->toIso8601String(),
+        'online' => true,
     ];
 });
 Broadcast::channel('call.{userId}', function ($user, $userId) {

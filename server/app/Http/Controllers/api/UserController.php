@@ -59,6 +59,20 @@ class UserController extends Controller
         return response()->json($member);
     }
 
+    public function status(string $id)
+    {
+        $member = User::findOrFail($id);
+
+        return response()->json([
+            'id' => $member->id,
+            'name' => $member->name,
+            'profile_photo_url' => $member->profile_photo_url,
+            'is_online' => $member->is_online,
+            'last_seen_at' => $member->last_seen_at?->toIso8601String(),
+            'last_seen_human' => $member->last_seen_human,
+        ]);
+    }
+
     public function updateProfile(Request $request)
     {
         if ($request->hasFile('image') && !$request->file('image')->isValid()) {
