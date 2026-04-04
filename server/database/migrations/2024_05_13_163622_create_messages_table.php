@@ -16,7 +16,7 @@ return new class extends Migration
             $table->unsignedBigInteger('from_id');
             $table->unsignedBigInteger('to_id');
             $table->string('body',500);
-            $table->string('attachment');
+            $table->string('attachment')->nullable()->default('');
             $table->boolean('seen')->default(false);
             $table->timestamps();
         });

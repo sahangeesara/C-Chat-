@@ -28,9 +28,11 @@ Route::middleware(['auth:api'])->group(function () {
         return auth()->user();
     })->middleware('auth:api');
 
-    Route::get('searchUser/{name}', [UserController::class, 'searchUser']); // search by name
-    Route::get('getUser/{name}', [UserController::class, 'searchUser']);
-    Route::get('getUser/{id}', [UserController::class, 'getUser']);
+    Route::get('searchUser/{name?}', [UserController::class, 'searchUser']); // search by name
+    Route::get('getUser/{id}', [UserController::class, 'show'])->whereNumber('id');
+    // Backward compatibility: frontend search still calls /api/getUser/{name}
+    Route::get('getUser/{name}', [UserController::class, 'searchUser'])
+        ->where('name', '^(?!\\d+$).+');
     // get by ID
     Route::apiResource('user', UserController::class);
 
@@ -40,8 +42,14 @@ Route::middleware(['auth:api'])->group(function () {
 
 //    // Test broadcast
     Route::get('/test-broadcast', function () {
-        broadcast(new ChatEvent("HELLO REALTIME", auth()->id(), 2));
-        return 'sent';
+        $userId = auth()->id();
+        broadcast(new ChatEvent($userId, $userId, 'HELLO REALTIME', '', null));
+
+        return response()->json([
+            'status' => 'sent',
+            'channel' => 'chat.' . $userId,
+            'event' => 'chat.message',
+        ]);
     });
 
     // routes/api.php

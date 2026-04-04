@@ -1,8 +1,8 @@
 <template>
-  <div class="container-fluid vh-100 g-0">
-    <div class="row g-0 h-100">
+  <div class="container-fluid vh-100 g-0 chat-shell">
+    <div class="row g-0 h-100 chat-layout flex-nowrap">
       <!-- Left Sidebar - Fixed width like WhatsApp -->
-      <div class="col-md-4 d-flex flex-column border-end bg-light" style="width: 380px;">
+      <div class="chat-sidebar d-flex flex-column border-end bg-light" v-show="showSidebarPane">
         <!-- Profile Header -->
         <div class="p-3 border-bottom">
           <h1 class="mb-0 fw-bold">Ch-Chat</h1>
@@ -19,16 +19,21 @@
                 placeholder="Search Friends"
                 @input="searchUser"
             >
-            <span class="input-group-text">
-              <i class="bi bi-search"></i>
-            </span>
+            <button
+                type="button"
+                class="input-group-text"
+                @click="clearSearch"
+                :title="searchQuery.trim() ? 'Clear search' : 'Search'"
+            >
+              <i class="bi" :class="searchQuery.trim() ? 'bi-x-lg' : 'bi-search'"></i>
+            </button>
           </div>
         </div>
 
         <!-- User List - Scrollable area -->
         <div class="flex-grow-1 overflow-auto">
           <div
-              v-for="user in filteredUsers"
+              v-for="user in visibleUsers"
               :key="user.id"
               class="p-2 border-bottom"
           >
@@ -66,13 +71,20 @@
         </div>
       </div>
       <!-- Right Chat Area - Only shown when user is selected -->
-      <div class="col-md-8 d-flex flex-column" v-if="selectedUser">
+      <div class="chat-main d-flex flex-column" v-if="selectedUser" v-show="showChatPane">
         <!-- Chat Header -->
         <div class="p-3 bg-light border-bottom d-flex justify-content-between align-items-center">
           <div class="d-flex align-items-center">
+            <button
+                type="button"
+                class="btn btn-sm btn-outline-secondary me-2 d-md-none"
+                @click="goBackToUsers"
+            >
+              <i class="bi bi-arrow-left"></i>
+            </button>
             <div class="me-3">
               <div class="rounded-circle bg-secondary d-flex align-items-center justify-content-center" style="width: 40px; height: 40px;">
-                <span class="text-white" >{{ selectedUser.name.charAt(0) }}</span>
+                <span class="text-white" >{{ selectedUser?.name?.charAt(0) || '?' }}</span>
               </div>
             </div>
             <div>
@@ -103,7 +115,7 @@
           >
             <!-- color message-->
             <div
-                class="p-2 rounded-3"
+                class="p-2 rounded-3 chat-message-bubble"
                 :class="{
                 'bg-primary text-white': msg.from_id === currentUserId,
                 'bg-success text-white': msg.from_id !== currentUserId
@@ -112,7 +124,7 @@
             >
               {{ msg.body }}
               <div class="text-end" style="font-size: 0.7rem; margin-top: 2px;">
-                <span style="color: rgba(245,245,245,0.7) !important;"> {{ new Date(msg.created_at).toLocaleDateString([], {month: '2-digit', day:'2-digit', year: 'numeric'}) }}</span>
+                <span style="color: rgba(245,245,245,0.7) !important;">{{ formatMessageDate(msg.created_at) }}</span>
                 <span v-if="msg.from_id === currentUserId" class="ms-1">
                   <i class="bi bi-check2-all text-info"></i>
                 </span>
@@ -144,7 +156,7 @@
         </div>
       </div>
       <!-- Empty State when no user is selected -->
-      <div class="col-md-8 d-flex flex-column justify-content-center align-items-center bg-light" v-else>
+      <div class="chat-main d-flex flex-column justify-content-center align-items-center bg-light" v-else v-show="showChatPane">
         <div class="text-center p-5">
           <i class="bi bi-people-fill" style="font-size: 3rem; color: #ccc;"></i>
           <h3 class="mt-3 text-muted">Select a user to start chatting</h3>
@@ -156,9 +168,8 @@
 </template>
 
 <script>
-import { ref, onMounted, onUpdated, computed,watch } from 'vue';
+import { ref, onMounted, onBeforeUnmount, computed, watch } from 'vue';
 import Chat from './Chat.vue';
-import { useStore } from 'vuex';
 import AllServiceService from '@/services/all-service';
 import echo from '@/services/echo'
 import CallService from "@/services/CallService";
@@ -174,13 +185,20 @@ export default {
     const selectedUser = ref(null);
     let currentUserId = ref(null);
     let currentUserName = ref(null);
+    const latestSearchRequestId = ref(0)
+    const searchDebounceTimer = ref(null)
+    const isMobileView = ref(window.innerWidth < 768)
+    const showSidebarOnMobile = ref(true)
     const pc = ref(null)
     const partnerId = ref(null)
     const remoteAudio = ref(null)
-    const store = useStore();
-    const token = computed(() => store.getters.getToken);
-  const iceQueue = ref([])
-  const remoteDescriptionSet = ref(false)
+    const activeChannelNames = ref([])
+    const updateViewportMode = () => {
+      isMobileView.value = window.innerWidth < 768;
+      if (!isMobileView.value) {
+        showSidebarOnMobile.value = true;
+      }
+    };
     // Get current date in DD/MM/YYYY format
     const currentDate = computed(() => {
       const today = new Date();
@@ -192,29 +210,78 @@ export default {
 
     const allService = new AllServiceService();
 
-    // Filter users based on search query
+    const showSidebarPane = computed(() => !isMobileView.value || showSidebarOnMobile.value);
+    const showChatPane = computed(() => !isMobileView.value || !showSidebarOnMobile.value);
+
+    // Filter users based on search query only.
     const filteredUsers = computed(() => {
-      if (!searchQuery.value.trim()) {
-        return userView.value;
-      }
-      return userView.value.filter(user =>
-          user.name.toLowerCase().includes(searchQuery.value.toLowerCase())
-      );
+      const term = searchQuery.value.trim().toLowerCase();
+
+      return term
+        ? userView.value.filter(user =>
+            (user?.name || '').toLowerCase().includes(term)
+          )
+        : userView.value;
     });
 
+    const visibleUsers = computed(() => filteredUsers.value.slice(0, 10));
+
+    const extractUserPage = (response) => {
+      if (Array.isArray(response)) {
+        return {
+          items: response,
+          nextPage: null,
+          currentPage: 1,
+          lastPage: 1
+        };
+      }
+
+      if (Array.isArray(response?.data)) {
+        return {
+          items: response.data,
+          nextPage: response.next_page_url ? (response.current_page || 1) + 1 : null,
+          currentPage: response.current_page || 1,
+          lastPage: response.last_page || 1
+        };
+      }
+
+      return {
+        items: [],
+        nextPage: null,
+        currentPage: 1,
+        lastPage: 1
+      };
+    };
+
     const fetchUserData = async (query) => {
+      const requestId = ++latestSearchRequestId.value;
+
       try {
-        const response = await allService.searchUser(query);
-        if (response && Array.isArray(response)) {
-          userView.value = response;
-        } else if (response?.data && Array.isArray(response.data)) {
-          userView.value = response.data;
-        } else {
-          userView.value = [];
+        const users = [];
+        let page = 1;
+        let shouldContinue = true;
+
+        while (shouldContinue && page <= 20 && users.length < 10) {
+          const response = await allService.searchUser(query, page);
+          const parsed = extractUserPage(response);
+
+          users.push(...parsed.items);
+
+          const hasNextByUrl = Boolean(response?.next_page_url);
+          const hasNextByCount = parsed.currentPage < parsed.lastPage;
+          shouldContinue = hasNextByUrl || hasNextByCount;
+          page += 1;
+        }
+
+        if (requestId === latestSearchRequestId.value) {
+          userView.value = Array.from(new Map(users.map((user) => [user.id, user])).values()).slice(0, 10);
         }
       } catch (error) {
         console.error('Error fetching user data:', error);
-        userView.value = [];
+
+        if (requestId === latestSearchRequestId.value) {
+          userView.value = [];
+        }
       }
     };
 
@@ -245,8 +312,8 @@ export default {
       try {
         const response = await allService.getUserProfile(id);
         if (response && response.user && response.user.id) {
-          currentUserId.value = response.user.id;
-          currentUserName.value = response.user.name;
+          // Profile lookup is for the selected person only.
+          selectedUser.value = response.user;
         } else {
           console.warn("No user ID found in response.");
         }
@@ -255,36 +322,77 @@ export default {
       }
     };
 
+    const normalizeMessagePayload = (payload, fallback = {}) => {
+      const source = typeof payload?.message === 'object' && payload.message !== null ? payload.message : payload;
+
+      return {
+        id: source?.id ?? source?.message_id ?? fallback?.id ?? null,
+        from_id: source?.from_id ?? source?.sender_id ?? source?.user_id ?? fallback?.from_id ?? null,
+        to_id: source?.to_id ?? source?.receiver_id ?? fallback?.to_id ?? null,
+        body: source?.body ?? source?.message ?? source?.text ?? fallback?.body ?? '',
+        created_at: source?.created_at ?? source?.date ?? fallback?.created_at ?? new Date().toISOString(),
+        _optimistic: Boolean(fallback?._optimistic),
+      };
+    };
+
     const sendMessage = async () => {
       if (!message.value || !selectedUser.value) {
         return;
       }
 
       const text = message.value.trim();
+      if (!text) {
+        message.value = '';
+        return;
+      }
 
-      // 🔥 CLEAR INPUT IMMEDIATELY
-      message.value = '';
-
-      // 🔥 SHOW MESSAGE IN UI INSTANTLY
-      chat.value.messages.push({
+      const optimisticMessage = normalizeMessagePayload({
+        id: `tmp-${Date.now()}-${Math.random().toString(36).slice(2)}`,
         from_id: currentUserId.value,
         to_id: selectedUser.value.id,
-        body: text
-      });
+        body: text,
+        created_at: new Date().toISOString(),
+      }, { _optimistic: true });
+
+      chat.value.messages.push(optimisticMessage);
+      message.value = '';
 
       try {
-        await allService.sendMessages({
+        const response = await allService.sendMessages({
           user_id: selectedUser.value.id,
-          message: text
+          message: text,
         });
+
+        const serverMessage = normalizeMessagePayload(response?.message ?? response?.data ?? response, optimisticMessage);
+
+        if (serverMessage?.body) {
+          const optimisticIndex = chat.value.messages.findIndex((item) => item._optimistic && item.id === optimisticMessage.id);
+          if (optimisticIndex !== -1) {
+            chat.value.messages.splice(optimisticIndex, 1, {
+              ...optimisticMessage,
+              ...serverMessage,
+              _optimistic: false,
+            });
+          }
+        }
       } catch (error) {
-        console.error('Send failed:', error);
+        console.error('Send failed:', error?.response?.data || error?.message || error);
+        chat.value.messages = chat.value.messages.filter((item) => item.id !== optimisticMessage.id);
+        message.value = text;
       }
     };
 
     const selectUser = (user) => {
       selectedUser.value = user;
       getMessage(user.id);
+
+      if (isMobileView.value) {
+        showSidebarOnMobile.value = false;
+      }
+    };
+
+    const goBackToUsers = () => {
+      showSidebarOnMobile.value = true;
     };
 
     const selectUserprofile = (user) => {
@@ -294,14 +402,50 @@ export default {
 
 
     const searchUser = async () => {
-      await fetchUserData(searchQuery.value);
+      if (searchDebounceTimer.value) {
+        clearTimeout(searchDebounceTimer.value);
+      }
+
+      const query = searchQuery.value.trim();
+
+      if (!query) {
+        await fetchUserData('');
+        return;
+      }
+
+      if (query.length < 2) {
+        return;
+      }
+
+      searchDebounceTimer.value = setTimeout(() => {
+        fetchUserData(query);
+      }, 250);
+    };
+
+    const clearSearch = async () => {
+      if (!searchQuery.value.trim()) {
+        return;
+      }
+
+      searchQuery.value = '';
+      await fetchUserData('');
     };
 
     const getMessage = async (userId) => {
       try {
         const response = await allService.getMessage(userId);
-        if (response && response.messages && response.messages.length > 0) {
-          chat.value.messages = response.messages;
+        let messages = [];
+
+        if (Array.isArray(response?.messages)) {
+          messages = response.messages;
+        } else if (Array.isArray(response?.data)) {
+          messages = response.data;
+        } else if (Array.isArray(response)) {
+          messages = response;
+        }
+
+        if (messages.length > 0) {
+          chat.value.messages = messages.map((item) => normalizeMessagePayload(item));
         } else {
           console.warn("No messages found.");
           chat.value.messages = [];
@@ -319,53 +463,131 @@ export default {
       }
     };
 
-    const initWebRTC = async () => {
-      pc.value = new RTCPeerConnection({
-        iceServers: [{ urls: 'stun:stun.l.google.com:19302' }]
-      })
+    const formatMessageDate = (createdAt) => {
+      if (!createdAt) return '';
+      const parsed = new Date(createdAt);
+      if (Number.isNaN(parsed.getTime())) return '';
+      return parsed.toLocaleDateString([], { month: '2-digit', day: '2-digit', year: 'numeric' });
+    };
 
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
-      stream.getTracks().forEach(track => pc.value.addTrack(track, stream))
+    const normalizeId = (value) => {
+      const numeric = Number(value);
+      return Number.isNaN(numeric) ? value : numeric;
+    };
 
-      pc.value.ontrack = (e) => {
-        remoteAudio.value.srcObject = e.streams[0]
+    const sameUserId = (a, b) => normalizeId(a) === normalizeId(b);
+
+    const mapRealtimeMessage = (event) => {
+      return normalizeMessagePayload(event);
+    };
+
+    const appendMessage = (incoming) => {
+      if (!incoming?.body) {
+        return;
       }
 
-      pc.value.onicecandidate = (e) => {
-        if (e.candidate && partnerId.value) {
-          CallService.sendIce(partnerId.value, e.candidate)
+      const optimisticIndex = chat.value.messages.findIndex((item) =>
+        item._optimistic &&
+        sameUserId(item.from_id, incoming.from_id) &&
+        sameUserId(item.to_id, incoming.to_id) &&
+        item.body === incoming.body
+      );
+
+      if (optimisticIndex !== -1) {
+        chat.value.messages.splice(optimisticIndex, 1, incoming);
+        return;
+      }
+
+      const alreadyExists = chat.value.messages.some((item) => {
+        if (item.id && incoming.id) {
+          return item.id === incoming.id;
         }
+
+        return (
+          sameUserId(item.from_id, incoming.from_id) &&
+          sameUserId(item.to_id, incoming.to_id) &&
+          item.body === incoming.body &&
+          item.created_at === incoming.created_at
+        );
+      });
+
+      if (!alreadyExists) {
+        chat.value.messages.push(incoming);
+      }
+    };
+
+    const subscribeToRealtimeMessages = (authUserId) => {
+      if (!authUserId) {
+        return;
+      }
+
+      activeChannelNames.value.forEach((channelName) => {
+        echo.leave(channelName);
+      });
+
+      // Server authorizes only chat.{currentUserId} private channels.
+      const channelName = `chat.${authUserId}`;
+      activeChannelNames.value = [channelName];
+
+      const handleRealtimeEvent = (event) => {
+        const incoming = mapRealtimeMessage(event);
+
+        const isCurrentConversation =
+            selectedUser.value &&
+            (sameUserId(incoming.from_id, selectedUser.value.id) || sameUserId(incoming.to_id, selectedUser.value.id));
+
+        if (isCurrentConversation) {
+          appendMessage(incoming);
+        }
+      };
+
+      echo.private(channelName)
+          .listen('.chat.message', handleRealtimeEvent)
+          .listen('MessageSent', handleRealtimeEvent)
+          .listen('.MessageSent', handleRealtimeEvent)
+          .listen('ChatMessageSent', handleRealtimeEvent)
+          .listen('my-event', handleRealtimeEvent)
+          .error(err => console.error('Echo private error:', err));
+    };
+
+    const initWebRTC = async () => {
+      try {
+        pc.value = new RTCPeerConnection({
+          iceServers: [{ urls: 'stun:stun.l.google.com:19302' }]
+        })
+
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
+        stream.getTracks().forEach(track => pc.value.addTrack(track, stream))
+
+        pc.value.ontrack = (e) => {
+          if (remoteAudio.value) {
+            remoteAudio.value.srcObject = e.streams[0]
+          }
+        }
+
+        pc.value.onicecandidate = (e) => {
+          if (e.candidate && partnerId.value) {
+            CallService.sendIce(partnerId.value, e.candidate)
+          }
+        }
+      } catch (error) {
+        console.warn('WebRTC init skipped:', error)
       }
     }
 
     onMounted(() => {
+      window.addEventListener('resize', updateViewportMode);
+      updateViewportMode();
+
       fetchUserId()
       fetchUserData('')
       initWebRTC()
     })
 
-// 🔥 subscribe ONLY after userId is loaded
     watch(currentUserId, (id) => {
       if (!id) return
 
-      echo.private(`chat.${id}`)
-          .listen('.chat.message', (e) => {
-            console.log('Realtime:', e)
-
-            if (
-                selectedUser.value &&
-                (e.from_id === selectedUser.value.id ||
-                    e.to_id === selectedUser.value.id)
-            ) {
-              chat.value.messages.push({
-                from_id: e.from_id,
-                to_id: e.to_id,
-                body: e.message,
-                created_at: e.created_at
-              })
-            }
-          })
-          .error(err => console.error('Echo error:', err))
+      subscribeToRealtimeMessages(id)
 
           //call service
       // echo.private(`call.${id}`)
@@ -389,8 +611,18 @@ export default {
 
     })
 
-    onUpdated(() => {
+    watch(() => chat.value.messages.length, () => {
       scrollToBottom();
+    });
+
+    onBeforeUnmount(() => {
+      activeChannelNames.value.forEach((channelName) => echo.leave(channelName));
+
+      window.removeEventListener('resize', updateViewportMode);
+
+      if (searchDebounceTimer.value) {
+        clearTimeout(searchDebounceTimer.value);
+      }
     });
 
     return {
@@ -404,13 +636,19 @@ export default {
       currentUserName,
       currentDate,
       filteredUsers,
+      visibleUsers,
+      showSidebarPane,
+      showChatPane,
       sendMessage,
       selectUser,
+      goBackToUsers,
+      clearSearch,
       searchUser,
       getMessage,
       selectUserprofile,
       userId,
-      startCall
+      startCall,
+      formatMessageDate
     };
   }
 };
@@ -459,30 +697,6 @@ body, html {
   background-color: #e9ecef !important;
 }
 
-/* Message bubbles */
-.message-bubble {
-  max-width: 70%;
-  padding: 8px 12px;
-  border-radius: 18px;
-  margin-bottom: 8px;
-  position: relative;
-}
-
-.message-bubble.sent {
-  background-color: #dcf8c6;
-  align-self: flex-end;
-}
-
-.message-bubble.received {
-  background-color: #ffffff;
-  align-self: flex-start;
-  border: 1px solid #e5e5ea;
-}
-/* Add these styles to your style section */
-.message-content {
-  word-wrap: break-word;
-  white-space: pre-wrap;
-}
 
 /* Add these to your style section */
 .h-100 {
@@ -495,20 +709,62 @@ body, html {
   min-height: 0; /* This is ESSENTIAL for proper flexbox scrolling */
 }
 
-/* Ensure the container uses full height */
-.container-fluid.vh-100 {
+.chat-shell {
   height: 100vh;
   overflow: hidden;
+  background: #3b82f6;
 }
 
-/* Fix for the row height */
-.row.h-100 {
-  height: 750px !important;
-  margin-top: 50px !important;
+/* Keep the sidebar and chat pane on one row on desktop */
+.chat-layout {
+  width: 100%;
+  height: 100%;
+  flex-wrap: nowrap;
 }
-@media (min-width: 400px)and (max-width: 864px) {
-  .row.h-100 {
-    height: 550px !important;
+
+.chat-sidebar {
+  flex: 0 0 380px;
+  width: 380px;
+  max-width: 380px;
+  min-width: 280px;
+}
+
+.chat-main {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.chat-main > .flex-grow-1 {
+  min-width: 0;
+}
+
+/* Ensure very long words like ttttttt... wrap into multiple lines. */
+.chat-message-bubble {
+  overflow-wrap: anywhere;
+  word-break: break-word;
+  white-space: pre-wrap;
+  text-align: justify;
+  text-justify: inter-word;
+}
+
+/* Mobile / narrow screens: stack the panes vertically */
+@media (max-width: 767.98px) {
+  .chat-shell {
+    height: auto;
+    min-height: 100vh;
+    overflow: auto;
+  }
+
+  .chat-layout {
+    flex-wrap: wrap;
+    height: auto;
+  }
+
+  .chat-sidebar,
+  .chat-main {
+    flex: 0 0 100%;
+    width: 100%;
+    max-width: 100%;
   }
 }
 </style>

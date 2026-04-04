@@ -5,24 +5,31 @@ namespace App\Http\Controllers;
 
 use App\Mail\ResetPasswordMail;
 use Carbon\Carbon;
-use Illuminate\Http\Response;
 use Illuminate\Http\Request;
 use App\Models\User;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Str;
 use Symfony\Component\HttpFoundation\Response as ResponseAlias;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 
 class ResetPasswordController extends Controller
 {
     public function sendEmail(Request $request)
     {
+        $request->validate([
+            'email' => 'required|email',
+        ]);
+
         if (!$this->validateEmail($request->email)) {
             return $this->failedResponse();
         }
 
-        $this->send($request->email);
-        return $this->successResponse();
+        return $this->send($request->email)
+            ? $this->successResponse()
+            : response()->json([
+                'error' => 'Unable to send reset email. Please try again later.',
+            ], ResponseAlias::HTTP_INTERNAL_SERVER_ERROR);
     }
 
     public function send($email)
@@ -30,8 +37,13 @@ class ResetPasswordController extends Controller
         try {
             $token = $this->createToken($email);
             Mail::to($email)->send(new ResetPasswordMail($token));
+            return true;
         } catch (\Throwable $e) {
-            \Log::error($e->getMessage());
+            Log::error('Reset password mail failed', [
+                'email' => $email,
+                'error' => $e->getMessage(),
+            ]);
+            return false;
         }
     }
 
@@ -64,6 +76,20 @@ class ResetPasswordController extends Controller
     public function validateEmail($email): bool
     {
         return User::where('email', $email)->exists();
+    }
+
+    private function failedResponse()
+    {
+        return response()->json([
+            'error' => 'Email not found',
+        ], ResponseAlias::HTTP_NOT_FOUND);
+    }
+
+    private function successResponse()
+    {
+        return response()->json([
+            'data' => 'Password reset link sent',
+        ], ResponseAlias::HTTP_OK);
     }
 }
 

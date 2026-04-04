@@ -4,39 +4,60 @@ import store from '@/store'
 
 window.Pusher = Pusher
 
+const wsPort = Number(process.env.VUE_APP_WEBSOCKETS_PORT || 6001)
+const apiBaseUrl = process.env.VUE_APP_API_BASE_URL || 'http://localhost:8000'
+const isSecurePage = window.location.protocol === 'https:'
+
 export default new Echo({
     broadcaster: 'pusher',
 
     key: 'd48f36eb19647382a1d0',
-    cluster: 'mt1',        // REQUIRED by pusher-js
+    cluster: 'ap2',        // Match the existing backend / Pusher cluster
 
-    wsHost: '127.0.0.1',
-    wsPort: 6001,
-    wssPort: 6001,
-   
-    forceTLS: true,     
-    encrypted: true,   
+    wsHost: process.env.VUE_APP_WEBSOCKETS_HOST || window.location.hostname || '127.0.0.1',
+    wsPort,
+    wssPort: wsPort,
+
+    forceTLS: isSecurePage,
+    encrypted: isSecurePage,
 
     disableStats: true,
-    enabledTransports: ['wss', 'ws'],
+    enabledTransports: ['ws', 'wss'],
 
     authorizer: (channel) => ({
         authorize: (socketId, callback) => {
-            fetch('http://127.0.0.1:8000/api/broadcasting/auth', {
+            const token = store.getters['auth/getToken'] || store.getters.getToken
+
+            if (!token) {
+                callback(new Error('Missing auth token for private channel subscription'))
+                return
+            }
+
+            fetch(`${apiBaseUrl}/api/broadcasting/auth`, {
                 method: 'POST',
                 headers: {
-                    Authorization: `Bearer ${store.getters.getToken}`,
+                    Authorization: `Bearer ${token}`,
                     'Content-Type': 'application/json',
-                    'Accept': 'application/json'   // 🔥 IMPORTANT FIX
+                    Accept: 'application/json'
                 },
                 body: JSON.stringify({
                     socket_id: socketId,
                     channel_name: channel.name
                 })
             })
-                .then(res => res.json())
-                .then(data => callback(null, data))
-                .catch(err => callback(err))
+                .then(async (res) => {
+                    const data = await res.json()
+
+                    if (!res.ok) {
+                        throw new Error(data?.message || `Broadcast auth failed with status ${res.status}`)
+                    }
+
+                    callback(null, data)
+                })
+                .catch((err) => {
+                    console.error('Echo authorizer failed:', err)
+                    callback(err)
+                })
         }
     })
 })

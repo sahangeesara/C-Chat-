@@ -24,9 +24,22 @@ class UserController extends Controller
     {
 
     }
-    public function searchUser($name)
+    public function searchUser(Request $request, $name = null)
     {
-        $members = User::where('name', 'like', '%' . $name . '%')->get();
+        $search = trim((string) ($request->input('query')
+            ?? $request->input('search')
+            ?? $request->input('name')
+            ?? $name
+            ?? ''));
+
+        $members = User::query()
+            ->when($search !== '', function ($query) use ($search) {
+                $query->where('name', 'like', '%' . $search . '%');
+            })
+            ->when(auth()->check(), function ($query) {
+                $query->where('id', '!=', auth()->id());
+            })
+            ->get();
 
         return response()->json($members);
     }

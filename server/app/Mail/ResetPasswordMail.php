@@ -37,12 +37,14 @@ class ResetPasswordMail extends Mailable
      * @param $token
      * @return Content
      */
-    public function content($token=null): Content
+    public function content(): Content
     {
         return new Content(
-            markdown: 'Email.passwordReset',
-            with: ['token'=>$this->token,
-                'url'=>'http://localhost:8080/#/resetpassword?token='.$this->token->token],
+            markdown: 'email.password-reset',
+            with: [
+                'token' => $this->token,
+                'url' => 'http://localhost:8080/#/resetpassword?token=' . $this->token,
+            ],
         );
     }
     /**

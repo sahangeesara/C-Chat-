@@ -4,7 +4,6 @@ namespace App\Http\Controllers;
 
 use App\Events\ChatEvent;
 use App\Models\Message;
-use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Log;
@@ -16,13 +15,17 @@ class ChatController extends Controller
         try {
             $authUserId = Auth::id(); // Get authenticated user ID
 
-            // Fetch messages where auth user is either sender or receiver
+            // Fetch messages where auth user is either sender or receiver.
             $messages = Message::with('user')
                 ->where(function ($query) use ($authUserId, $id) {
-                    $query->where('from_id', $authUserId)->where('to_id', $id)
-                        ->orWhere('from_id', $id)->where('to_id', $authUserId);
+                    $query->where(function ($inner) use ($authUserId, $id) {
+                        $inner->where('from_id', $authUserId)
+                            ->where('to_id', $id);
+                    })->orWhere(function ($inner) use ($authUserId, $id) {
+                        $inner->where('from_id', $id)
+                            ->where('to_id', $authUserId);
+                    });
                 })
-                ->where('is_active',1)
                 ->orderBy('created_at', "ASC") // Order by oldest to newest
                 ->get();
 
@@ -35,35 +38,68 @@ class ChatController extends Controller
 
     public function send(Request $request)
     {
+        if (!$request->filled('user_id') && $request->filled('to_id')) {
+            $request->merge(['user_id' => $request->to_id]);
+        }
+
+        if (!$request->filled('message') && !$request->filled('attachment')) {
+            return response()->json([
+                'error' => 'A message body or attachment is required.'
+            ], 422);
+        }
+
         $request->validate([
-            'message' => 'required|string',
-            'user_id' => 'required|exists:user,id', // your table name is `user`
+            'message' => 'nullable|string',
+            'user_id' => 'required|exists:users,id',
         ]);
 
         $fromId = auth()->id();
         $toId   = $request->user_id;
+        $messageBody = trim((string) $request->input('message', ''));
 
         try {
-            $message = new Message();
-            $message->from_id = $fromId;
-            $message->to_id   = $toId;
-            $message->body    = $request->message;
-            $message->save();
+            $message = Message::create([
+                'from_id' => $fromId,
+                'to_id' => $toId,
+                'body' => $messageBody,
+                'attachment' => $request->input('attachment', ''),
+                'seen' => false,
+                'is_active' => true,
+            ]);
 
-            broadcast(new ChatEvent(
-                auth()->id(),
-                $request->user_id,
-                $request->message
-            ))->toOthers();
+            $broadcasted = true;
+
+            try {
+                broadcast(new ChatEvent(
+                    $fromId,
+                    $toId,
+                    $message->body,
+                    $message->attachment,
+                    $message->id
+                ));
+            } catch (\Throwable $broadcastError) {
+                $broadcasted = false;
+                Log::warning('Message saved but realtime broadcast failed', [
+                    'error' => $broadcastError->getMessage(),
+                    'from_id' => $fromId,
+                    'to_id' => $toId,
+                    'message_id' => $message->id,
+                ]);
+            }
 
 
             return response()->json([
                 'status' => 'Message sent',
-                'message' => $message
+                'message' => $message,
+                'realtime' => $broadcasted,
             ], 200);
 
         } catch (\Exception $e) {
-            \Log::error($e->getMessage());
+            \Log::error('Message send failed', [
+                'error' => $e->getMessage(),
+                'from_id' => $fromId ?? null,
+                'to_id' => $toId ?? null,
+            ]);
             return response()->json(['error' => 'Message failed'], 500);
         }
     }

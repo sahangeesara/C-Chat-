@@ -17,6 +17,7 @@ class Message extends Model
         'body',
         'attachment',
         'seen',
+        'is_active',
     ];
     protected $hidden = ['user'];
     public function user(): BelongsTo

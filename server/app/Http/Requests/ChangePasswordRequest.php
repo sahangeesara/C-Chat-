@@ -6,6 +6,13 @@ use Illuminate\Foundation\Http\FormRequest;
 
 class ChangePasswordRequest extends FormRequest
 {
+    protected function prepareForValidation(): void
+    {
+        if (!$this->filled('resetToken') && $this->filled('token')) {
+            $this->merge(['resetToken' => $this->input('token')]);
+        }
+    }
+
     /**
      * Determine if the user is authorized to make this request.
      */
@@ -23,8 +30,8 @@ class ChangePasswordRequest extends FormRequest
     {
         return [
             'email' => 'required|email',
-            'password' =>'required|confirmed',
-            'resetToken' => 'required|string'
+            'password' => 'required|confirmed|min:6',
+            'resetToken' => 'required|string',
         ];
     }
 }

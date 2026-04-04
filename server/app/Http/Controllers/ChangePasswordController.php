@@ -6,7 +6,6 @@ use App\Http\Requests\ChangePasswordRequest;
 use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Hash;
 use Symfony\Component\HttpFoundation\Response as ResponseAlias;
 
 
@@ -31,8 +30,14 @@ class ChangePasswordController extends Controller
     {
         $user = User::whereEmail($request->email)->first();
 
+        if (!$user) {
+            return response()->json([
+                'error' => 'User not found',
+            ], ResponseAlias::HTTP_NOT_FOUND);
+        }
+
         $user->update([
-            'password' => Hash::make($request->password)
+            'password' => $request->password
         ]);
 
         DB::table('password_reset_tokens')

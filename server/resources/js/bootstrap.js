@@ -20,16 +20,32 @@ import Echo from 'laravel-echo';
 import Pusher from 'pusher-js';
 window.Pusher = Pusher;
 
+const token =
+    localStorage.getItem('access_token') ||
+    localStorage.getItem('token') ||
+    null;
+
+const scheme = import.meta.env.VITE_PUSHER_SCHEME || window.location.protocol.replace(':', '') || 'http';
+const host = import.meta.env.VITE_PUSHER_HOST || window.location.hostname;
+const port = Number(import.meta.env.VITE_PUSHER_PORT || 6001);
+const isSecure = scheme === 'https';
+
 window.Echo = new Echo({
     broadcaster: 'pusher',
-    key: import.meta.env.VITE_PUSHER_APP_KEY,
-    cluster: import.meta.env.VITE_PUSHER_APP_CLUSTER ?? 'ap2',
-    wsHost: import.meta.env.VITE_PUSHER_HOST ? import.meta.env.VITE_PUSHER_HOST : `ws-${import.meta.env.VITE_PUSHER_APP_CLUSTER}.pusher.com`,
-    wsPort: import.meta.env.VITE_PUSHER_PORT ?? 80,
-    wssPort: import.meta.env.VITE_PUSHER_PORT ?? 443,
-    forceTLS: (import.meta.env.VITE_PUSHER_SCHEME ?? 'https') === 'https',
-    enabledTransports: ['ws', 'wss'],
+    key:
+        import.meta.env.VITE_PUSHER_APP_KEY ||
+        import.meta.env.VUE_APP_PUSHER_APP_KEY ||
+        null,
+    cluster: import.meta.env.VITE_PUSHER_APP_CLUSTER ?? 'mt1',
+    wsHost: host,
+    wsPort: port,
+    wssPort: port,
+    forceTLS: isSecure,
+    enabledTransports: isSecure ? ['wss'] : ['ws'],
     disableStats: true,
-    encrypted: true,
-    authEndpoint: '/custom/endpoint/auth'
+    authEndpoint: `${window.location.origin}/api/broadcasting/auth`,
+    auth: {
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+    },
+    withCredentials: true,
 });
