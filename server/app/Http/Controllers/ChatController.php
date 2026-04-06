@@ -42,27 +42,49 @@ class ChatController extends Controller
             $request->merge(['user_id' => $request->to_id]);
         }
 
-        if (!$request->filled('message') && !$request->filled('attachment')) {
+        $messageBody = trim((string) $request->input('message', ''));
+        $attachmentInput = trim((string) $request->input('attachment', ''));
+        $hasAttachmentFile = $request->hasFile('attachment');
+
+        if ($messageBody === '' && !$hasAttachmentFile && $attachmentInput === '') {
             return response()->json([
                 'error' => 'A message body or attachment is required.'
             ], 422);
         }
 
-        $request->validate([
+        if ($hasAttachmentFile && !$request->file('attachment')->isValid()) {
+            return response()->json([
+                'error' => 'The attachment failed to upload.',
+            ], 422);
+        }
+
+        $validationRules = [
             'message' => 'nullable|string',
             'user_id' => 'required|exists:users,id',
-        ]);
+            'attachment' => 'nullable|string|max:2048',
+        ];
+
+        if ($hasAttachmentFile) {
+            $validationRules['attachment'] = 'nullable|file|max:10240';
+        }
+
+        $request->validate($validationRules);
 
         $fromId = auth()->id();
         $toId   = $request->user_id;
-        $messageBody = trim((string) $request->input('message', ''));
+        $attachment = $attachmentInput;
+
+        if ($hasAttachmentFile) {
+            $storedPath = $request->file('attachment')->store('chat-attachments', 'public');
+            $attachment = asset('storage/' . ltrim($storedPath, '/'));
+        }
 
         try {
             $message = Message::create([
                 'from_id' => $fromId,
                 'to_id' => $toId,
                 'body' => $messageBody,
-                'attachment' => $request->input('attachment', ''),
+                'attachment' => $attachment,
                 'seen' => false,
                 'is_active' => true,
             ]);

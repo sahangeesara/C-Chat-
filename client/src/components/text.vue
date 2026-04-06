@@ -5,7 +5,7 @@
       <div class="col-md-4 d-flex flex-column border-end bg-light" style="width: 380px;">
         <!-- Profile Header -->
         <div class="p-3 border-bottom">
-          <h1 class="mb-0 fw-bold">Ch-Chat</h1>
+          <h1 class="mb-0 fw-bold">Chatrio</h1>
           <small class="text-muted">chat</small>
         </div>
 

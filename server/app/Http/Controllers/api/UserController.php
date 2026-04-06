@@ -70,6 +70,10 @@ class UserController extends Controller
             'is_online' => $member->is_online,
             'last_seen_at' => $member->last_seen_at?->toIso8601String(),
             'last_seen_human' => $member->last_seen_human,
+        ], 200, [
+            'Cache-Control' => 'no-store, no-cache, must-revalidate, max-age=0',
+            'Pragma' => 'no-cache',
+            'Expires' => '0',
         ]);
     }
 

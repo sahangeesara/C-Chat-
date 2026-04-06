@@ -41,13 +41,31 @@ class CallController extends Controller
     public function answer(Request $request)
     {
         $data = $request->validate([
-            'call_id' => 'required|integer|exists:calls,id',
+            'call_id' => 'nullable|integer|exists:calls,id|required_without:to_id',
+            'to_id' => 'nullable|integer|exists:users,id|not_in:' . auth()->id() . '|required_without:call_id',
             'sdp' => 'required',
         ]);
 
-        $call = Call::where('id', $data['call_id'])
+        $callQuery = Call::query()
             ->where('callee_id', auth()->id())
-            ->firstOrFail();
+            ->whereNull('ended_at');
+
+        if (!empty($data['call_id'])) {
+            $call = $callQuery
+                ->where('id', $data['call_id'])
+                ->firstOrFail();
+        } else {
+            $call = $callQuery
+                ->where('caller_id', $data['to_id'])
+                ->latest('id')
+                ->first();
+
+            if (!$call) {
+                return response()->json([
+                    'error' => 'No active incoming call found for this user.',
+                ], 404);
+            }
+        }
 
         if ($call->ended_at) {
             return response()->json(['error' => 'Call already ended'], 422);
@@ -64,7 +82,7 @@ class CallController extends Controller
         broadcast(new CallAnswered(
             auth()->id(),
             $call->caller_id,
-            $data['sdp'],
+            $call->answer_sdp,
             $call->id
         ))->toOthers();
 

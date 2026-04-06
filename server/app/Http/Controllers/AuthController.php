@@ -65,7 +65,12 @@ class AuthController extends Controller
      */
     public function logout()
     {
-        Auth::user()?->touchLastSeen();
+        if ($user = Auth::user()) {
+            // Mark offline immediately instead of waiting for the is_online grace window.
+            $user->forceFill([
+                'last_seen_at' => now()->subMinutes(3),
+            ])->saveQuietly();
+        }
         Auth::logout();
 
         return response()->json(['message' => 'Successfully logged out']);

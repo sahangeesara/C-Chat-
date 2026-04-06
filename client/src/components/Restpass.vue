@@ -1,44 +1,60 @@
 <template>
-    <div class="contemer">
-  <div class="row" style="padding-top: 100px !important;">
-    <div class="col-4"></div>
-        <div class="card p-0 col-6" style="height: 400px !important; width: 500px;">
-          <div class="card-header bg-primary" style="color:white"> Reset Password Here </div>
-       <div class="card-body  bground">
-              <form  @submit.prevent="onSubmit" autocomplete="off">
-                      <div class="form-group d-lg-inline row">
-                              <label for="exampleInputEmail1">Email address :</label>
-                              <input type="email" class="form-control col-4 " name="email" id="exampleInputEmail1" aria-describedby="emailHelp" v-model="userData.email" placeholder="Enter email" required>
-                      </div>
-                          <br>
-                      <div class="form-group row d-lg-inline">
-                              <label for="exampleInputPassword1">New Password :</label>
-                              <input v-bind:type="hide ? 'password' : 'text'"   class="form-control" id="exampleInputPassword1" name="password" v-model="userData.password" placeholder="New Password" required>
-                             <b @click="hide = !hide" :aria-label="'Hide password'" :aria-pressed="hide">
-                                 <i class="material-icons">{{ hide ? 'visibility_off' : 'visibility' }}</i>
-                              </b> 
-                       </div>
-                          <br>
-                          <div class="form-group row d-lg-inline">
-                              <label for="exampleInputPassword2">Comform Password :</label>
-                              <input v-bind:type="hide2 ? 'password' : 'text'" class="form-control" name="password_confirmation" id="exampleInputPassword2" v-model="userData.password_confirmation" placeholder="Comform Password" required>
-                              <b @click="hide2 = !hide2" :aria-label="'Hide password'" :aria-pressed="hide2">
-                                     <i class="material-icons">{{ hide2 ? 'visibility_off' : 'visibility' }}</i>
-                             </b> 
-                            </div>
-                          <br>
-                          <div class=" float-lg-start">
-                            <button type="submit" class="btn btn-primary">Change Password</button>
-                          </div>
-              </form>
-          </div>
-       </div>
-       <div class="col-4"></div>
-      </div>
-      </div>
-  
-  </template>
-  
+  <div class="auth-container">
+    <div class="auth-card auth-card-wide">
+      <div class="logo">Chatrio</div>
+
+      <h1 class="title">Reset Password</h1>
+
+      <form @submit.prevent="onSubmit" autocomplete="off" class="auth-form">
+        <div class="input-group">
+          <input
+            type="email"
+            name="email"
+            id="exampleInputEmail1"
+            v-model.trim="userData.email"
+            placeholder="Email"
+            class="input-field"
+            required
+          >
+        </div>
+
+        <div class="input-group">
+          <input
+            :type="hide ? 'password' : 'text'"
+            class="input-field"
+            id="exampleInputPassword1"
+            name="password"
+            v-model="userData.password"
+            placeholder="New Password"
+            required
+          >
+          <span class="password-toggle" @click="hide = !hide">
+            <i :class="hide ? 'bi bi-eye-slash' : 'bi bi-eye'"></i>
+          </span>
+        </div>
+
+        <div class="input-group">
+          <input
+            :type="hide2 ? 'password' : 'text'"
+            class="input-field"
+            name="password_confirmation"
+            id="exampleInputPassword2"
+            v-model="userData.password_confirmation"
+            placeholder="Confirm Password"
+            required
+          >
+          <span class="password-toggle" @click="hide2 = !hide2">
+            <i :class="hide2 ? 'bi bi-eye-slash' : 'bi bi-eye'"></i>
+          </span>
+        </div>
+
+        <button type="submit" class="submit-btn">Change Password</button>
+        <router-link to="/" class="btn secondary-btn">Sign In</router-link>
+      </form>
+    </div>
+  </div>
+</template>
+
   
     <script>
 
@@ -85,17 +101,122 @@
  </script>
     
    
-    <style scoped>
-  h1 {
-    color: aqua;
-  }
-  .text-center {
-    padding: 200px 500px;
-  }
-  .bground{
-      background: rgb(2,0,36);
-      background: linear-gradient(90deg, rgba(2,0,36,1) 0%, rgba(221,255,222,0.050945378151260545) 0%, rgba(221,242,218,0.48792016806722693) 84%);
-  }
-  
-  </style>
-    
+<style scoped>
+.auth-container {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-height: 100vh;
+  background: linear-gradient(135deg, #eaf4ff 0%, #d7ebff 55%, #c5e2ff 100%);
+  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+}
+
+.auth-card {
+  background: #f4f9ff;
+  border-radius: 30px;
+  padding: 2rem;
+  width: 100%;
+  max-width: 360px;
+  border: 1px solid #b9d8ff;
+  box-shadow: 0 12px 32px rgba(59, 130, 246, 0.2);
+  position: relative;
+  text-align: center;
+}
+
+.auth-card-wide {
+  max-width: 430px;
+}
+
+.logo {
+  position: absolute;
+  top: -40px;
+  left: 50%;
+  transform: translateX(-50%);
+  background-color: #60a5fa;
+  color: #ffffff;
+  width: 130px;
+  height: 100px;
+  border-radius: 75%;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  font-weight: bold;
+  font-size: 1.5rem;
+}
+
+.title {
+  margin-top: 2rem;
+  margin-bottom: 1.5rem;
+  color: #133c6d;
+  font-size: 1.5rem;
+  font-weight: 600;
+}
+
+.auth-form {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.input-group {
+  position: relative;
+}
+
+.input-field {
+  width: 100%;
+  padding: 12px 16px;
+  border: 1px solid #bfdcff;
+  background-color: #ffffff;
+  color: #163d66;
+  border-radius: 8px;
+  font-size: 1rem;
+}
+
+.input-field::placeholder {
+  color: #6f92b9;
+}
+
+.input-field:focus {
+  outline: none;
+  border-color: #60a5fa;
+  box-shadow: 0 0 0 0.2rem rgba(96, 165, 250, 0.2);
+}
+
+.password-toggle {
+  position: absolute;
+  right: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  cursor: pointer;
+  color: #5e84ad;
+}
+
+.submit-btn {
+  background-color: #60a5fa;
+  color: #ffffff;
+  border: none;
+  padding: 12px;
+  border-radius: 8px;
+  font-size: 1rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background-color 0.3s;
+}
+
+.submit-btn:hover {
+  background-color: #3b82f6;
+}
+
+.secondary-btn {
+  border: 1px solid #b9d8ff;
+  color: #1f4f82;
+  background-color: #eaf4ff;
+}
+
+.secondary-btn:hover {
+  border-color: #60a5fa;
+  color: #0f3c70;
+  background-color: #d7ebff;
+}
+</style>
+

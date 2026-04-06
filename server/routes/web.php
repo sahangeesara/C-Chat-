@@ -1,9 +1,6 @@
 <?php
 
-use App\Http\Controllers\ChatController;
-use BeyondCode\LaravelWebSockets\Facades\WebSocketsRouter;
 use Illuminate\Support\Facades\Route;
-use Tymon\JWTAuth\Contracts\Providers\Auth;
 
 /*
 |--------------------------------------------------------------------------
@@ -15,5 +12,7 @@ use Tymon\JWTAuth\Contracts\Providers\Auth;
 | be assigned to the "web" middleware group. Make something great!
 |
 */
-//
-//WebSocketsRouter::webSocket('/app/{appKey}', \BeyondCode\LaravelWebSockets\Server\WebSocketHandler::class);
+Route::get('/', function () {
+    return response()->json(['status' => 'ok']);
+});
+

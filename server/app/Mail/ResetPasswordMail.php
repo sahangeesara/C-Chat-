@@ -39,11 +39,14 @@ class ResetPasswordMail extends Mailable
      */
     public function content(): Content
     {
+        $frontendUrl = rtrim((string) config('services.frontend.url', 'http://localhost:3000'), '/');
+        $resetUrl = $frontendUrl . '/#/resetpassword?token=' . urlencode((string) $this->token);
+
         return new Content(
             markdown: 'email.password-reset',
             with: [
                 'token' => $this->token,
-                'url' => 'http://localhost:8080/#/resetpassword?token=' . $this->token,
+                'url' => $resetUrl,
             ],
         );
     }

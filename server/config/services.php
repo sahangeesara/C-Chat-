@@ -31,4 +31,21 @@ return [
         'region' => env('AWS_DEFAULT_REGION', 'us-east-1'),
     ],
 
+    'frontend' => [
+        'url' => env('FRONTEND_URL', 'http://localhost:3000'),
+    ],
+
+    'open_meteo_geocoding' => [
+        'base_url' => env('OPEN_METEO_GEOCODING_URL', 'https://geocoding-api.open-meteo.com'),
+    ],
+
+    'open_meteo_weather' => [
+        'base_url' => env('OPEN_METEO_WEATHER_URL', 'https://api.open-meteo.com'),
+    ],
+
+    'mapsco' => [
+        'base_url' => env('MAPSCO_BASE_URL', 'https://geocode.maps.co'),
+        'api_key' => env('MAPSCO_API_KEY'),
+    ],
+
 ];

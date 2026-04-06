@@ -5,19 +5,31 @@ module.exports = defineConfig({
   
   devServer: {
     host: '127.0.0.1',
-    port: 8080,
+    port: 3000,
     allowedHosts: 'all',
     // Keep dev websocket local even if the page is opened via tunnel URLs.
     client: {
       webSocketURL: {
         protocol: 'ws',
         hostname: '127.0.0.1',
-        port: 8080,
+        port: 3000,
         pathname: '/ws'
       }
     },
     hot: false,
-    liveReload: false
+    liveReload: false,
+    proxy: {
+      '/api/weather': {
+        target: 'https://api.open-meteo.com',
+        changeOrigin: true,
+        pathRewrite: { '^/api/weather': '/v1/forecast' }
+      },
+      '/api/location': {
+        target: 'https://geocoding-api.open-meteo.com',
+        changeOrigin: true,
+        pathRewrite: { '^/api/location': '/v1/reverse' }
+      }
+    }
   },
   configureWebpack: {
     resolve: {

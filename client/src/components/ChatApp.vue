@@ -1,10 +1,19 @@
 <template>
+  <div v-if="isInitialLoading" class="initial-loading-screen">
+    <div class="initial-loading-card text-center">
+      <h2 class="mb-2">Chatrio</h2>
+      <p class="text-muted mb-3">Loading your chats...</p>
+      <output class="spinner-border text-primary" aria-label="Loading"></output>
+      <div class="powered-by-text mt-3">Powered by CodeHelio</div>
+    </div>
+  </div>
+
   <div class="container-fluid vh-100 g-0 chat-shell" :style="chatThemeStyle">
     <div class="row g-0 h-100 chat-layout flex-nowrap">
       <!-- Left Sidebar - Fixed width like WhatsApp -->
       <div class="chat-sidebar border-end" v-show="showSidebarPane">
         <!-- Profile Header -->
-        <div class="p-3 d-flex justify-content-between align-items-center border-bottom border-dark position-relative" style="background-color: #202c33; height: 60px;">
+        <div class="p-3 d-flex justify-content-between align-items-center border-bottom border-dark position-relative" style="background-color: #d7ebff; height: 60px;">
           <div @click="openCurrentUserDetails" style="cursor: pointer;" class="d-flex align-items-center gap-2">
             <img
               v-if="currentUserPhoto"
@@ -20,34 +29,48 @@
           </div>
 
           <div class="d-flex gap-3 text-white align-items-center">
+            <button type="button" class="btn btn-sm btn-outline-light" @click="openGroupManager" title="Create group">
+              <i class="bi bi-people-fill"></i>
+            </button>
             <i class="bi bi-chat-left-text-fill"></i>
             <i class="bi bi-three-dots-vertical" style="cursor: pointer;" @click="toggleMenu"></i>
           </div>
 
           <div v-if="showHeaderMenu" class="header-menu">
-            <button type="button" class="dropdown-item" @click="openSettings">Settings</button>
-            <router-link to="/" class="dropdown-item">Logout</router-link>
+            <button type="button" class="dropdown-item dropdown-item-disabled" disabled title="Coming soon">
+              <i class="bi bi-shield-check me-2"></i>HR Management <small class="text-muted">(coming soon)</small>
+            </button>
+            <button type="button" class="dropdown-item dropdown-item-disabled" disabled title="Coming soon">
+              <i class="bi bi-building me-2"></i>Hotel Booking <small class="text-muted">(coming soon)</small>
+            </button>
+            <div class="dropdown-divider my-1"></div>
+            <button type="button" class="dropdown-item" @click="openSettings">
+              <i class="bi bi-gear me-2"></i>Settings
+            </button>
+            <router-link to="/" class="dropdown-item">
+              <i class="bi bi-box-arrow-right me-2"></i>Logout
+            </router-link>
           </div>
         </div>
 
         <!-- Search Bar -->
-        <div class="p-2" style="background-color: #111b21;">
+        <div class="p-2" style="background-color: #eaf4ff;">
           <div class="input-group">
-            <span class="input-group-text border-0" style="background-color: #202c33; color: #8696a0;">
+            <span class="input-group-text border-0" style="background-color: #d7ebff; color: #163d66;">
               <i class="bi bi-search"></i>
             </span>
             <input
                 type="text"
-                class="form-control border-0 text-white shadow-none"
+                class="form-control border-0 shadow-none"
                 v-model="searchQuery"
-                style="background-color: #202c33;"
+                style="background-color: #d7ebff; color: #163d66;"
                 placeholder="Search or start a new chat"
                 @input="searchUser"
             >
             <button
                 type="button"
                 class="input-group-text border-0"
-                style="background-color: #202c33; color: #8696a0;"
+                style="background-color: #d7ebff; color: #163d66;"
                 @click="clearSearch"
                 :title="searchQuery.trim() ? 'Clear search' : 'Search'"
             >
@@ -57,7 +80,35 @@
         </div>
 
         <!-- User List - Scrollable area -->
-        <div class="flex-grow-1 overflow-auto">
+        <div class="flex-grow-1 overflow-auto sidebar-user-list">
+          <div class="px-2 pt-2" v-if="visibleGroups.length">
+            <div class="d-flex justify-content-between align-items-center mb-2">
+              <small class="text-muted text-uppercase">Groups</small>
+              <small class="text-muted">{{ visibleGroups.length }}</small>
+            </div>
+            <div v-for="group in visibleGroups" :key="group.id" class="p-2 border-bottom position-relative d-flex align-items-center gap-2">
+              <button
+                type="button"
+                class="list-group-item list-group-item-action border-0 d-flex align-items-center flex-grow-1"
+                :class="{ 'active': selectedUser?.id === group?.id && selectedUser?.type === 'group' }"
+                @click="selectGroup(group)"
+              >
+                <span class="flex-shrink-0 me-2">
+                  <span class="rounded-circle bg-primary d-flex align-items-center justify-content-center" style="width: 40px; height: 40px;">
+                    <i class="bi bi-people-fill text-white"></i>
+                  </span>
+                </span>
+                <span class="flex-grow-1 text-start">
+                  {{ group?.name || 'Untitled Group' }}
+                  <small class="text-muted text-truncate d-block">{{ formatGroupPreview(group) }}</small>
+                </span>
+              </button>
+            </div>
+          </div>
+
+          <div class="px-2 pt-3" v-if="visibleGroups.length || visibleUsers.length">
+            <small class="text-muted text-uppercase">People</small>
+          </div>
           <div
               v-for="user in visibleUsers"
               :key="user.id"
@@ -77,12 +128,12 @@
                   alt="User"
                 >
                 <span v-else class="rounded-circle bg-secondary d-flex align-items-center justify-content-center" style="width: 40px; height: 40px;">
-                  <span class="text-white" >{{ user?.name?.charAt(0) || '?' }}</span>
+                  <span class="text-white">{{ user?.name?.charAt(0) || '?' }}</span>
                 </span>
               </span>
               <span class="flex-grow-1">
                 {{ user?.name || 'Unknown User' }}
-                <small class="text-muted text-truncate d-block" style="max-width: 250px;">Message for {{ user?.name || 'Unknown' }}</small>
+                <small class="text-muted text-truncate d-block" style="max-width: 250px;">Chat with {{ user?.name || 'Unknown' }}</small>
               </span>
               <span class="flex-shrink-0">
                 <small class="text-muted">12:30 PM</small>
@@ -92,8 +143,8 @@
         </div>
 
         <!-- Footer -->
-        <div class="chat-footer p-3 border-top border-dark" style="background-color: #111b21;">
-          <div class="d-flex justify-content-between small mt-2" style="color: #8696a0;">
+        <div class="chat-footer p-3 border-top border-dark" style="background-color: #eaf4ff;">
+          <div class="d-flex justify-content-between small mt-2" style="color: #163d66;">
             <span>{{ currentWeather }}</span>
             <span>{{ currentLocation }}</span>
             <span>{{ currentDate }}</span>
@@ -103,7 +154,7 @@
       <!-- Right Chat Area - Only shown when user is selected -->
       <div class="chat-main" v-if="selectedUser && showChatPane && !isDetailsOpen">
         <!-- Chat Header -->
-        <div class="p-3 border-bottom border-dark d-flex justify-content-between align-items-center" style="background-color: #202c33; color: #e9edef;">
+        <div class="p-3 border-bottom border-dark d-flex justify-content-between align-items-center" style="background-color: #d7ebff; color: #163d66;">
           <div class="d-flex align-items-center">
             <button
                 type="button"
@@ -112,7 +163,7 @@
             >
               <i class="bi bi-arrow-left"></i>
             </button>
-            <div class="me-3" style="cursor: pointer;" @click="selectUserprofile(selectedUser)">
+            <div class="me-3" style="cursor: pointer;" @click="isGroupConversation(selectedUser) ? openGroupDetails(selectedUser) : selectUserprofile(selectedUser)">
               <img
                 v-if="getUserPhoto(selectedUser)"
                 :src="getUserPhoto(selectedUser)"
@@ -124,47 +175,35 @@
                 <span class="text-white" >{{ selectedUser?.name?.charAt(0) || '?' }}</span>
               </div>
             </div>
-            <div style="cursor: pointer;" @click="selectUserprofile(selectedUser)">
+            <div style="cursor: pointer;" @click="isGroupConversation(selectedUser) ? openGroupDetails(selectedUser) : selectUserprofile(selectedUser)">
               <h6 class="mb-0">Chat with {{ selectedUser.name }}</h6>
-              <small style="color: #8696a0;">{{ getUserPresenceText(selectedUser) }}</small>
+              <small style="color: #163d66;">{{ isGroupConversation(selectedUser) ? 'Group conversation' : getUserPresenceText(selectedUser) }}</small>
             </div>
           </div>
           <div class="d-flex gap-2">
             <button
               v-if="selectedCallHistory.length"
               class="btn btn-sm btn-outline-secondary"
-              @click="openCallHistoryDetails(selectedCallHistory[0])"
-              title="View last call"
+              @click="openCallHistoryDetails()"
+              title="Click to view call details"
             >
               <i class="bi bi-clock-history"></i>
             </button>
-            <button class="btn btn-sm btn-outline-primary">
+            <button v-if="!isGroupConversation(selectedUser)" class="btn btn-sm btn-outline-primary">
               <i class="bi bi-camera-video"></i>
             </button>
-            <button class="btn btn-sm btn-outline-primary" @click="startCall(selectedUser.id)">
+            <button v-if="!isGroupConversation(selectedUser)" class="btn btn-sm btn-outline-primary" @click="startCall(selectedUser.id)">
               <i class="bi bi-telephone fs-6"></i>
             </button>
             <button
-              v-if="partnerId && sameUserId(partnerId, selectedUser.id)"
+              v-if="!isGroupConversation(selectedUser) && partnerId && sameUserId(partnerId, selectedUser.id)"
               class="btn btn-sm btn-outline-danger"
               @click="endCurrentCall"
             >
               <i class="bi bi-telephone-x fs-6"></i>
             </button>
-          </div>
-        </div>
-
-        <div v-if="selectedCallHistory.length" class="call-history-strip border-bottom border-dark">
-          <small class="text-muted d-block mb-1">Recent calls</small>
-          <div class="call-history-list">
-            <button
-              v-for="(item, index) in selectedCallHistory.slice(0, 3)"
-              :key="item.id || `${item.started_at}-${index}`"
-              type="button"
-              class="call-history-item"
-              @click="openCallHistoryDetails(item)"
-            >
-              {{ formatCallHistoryItem(item) }}
+            <button v-if="isGroupConversation(selectedUser)" class="btn btn-sm btn-outline-secondary" @click="openGroupSettings(selectedUser)">
+              <i class="bi bi-gear"></i>
             </button>
           </div>
         </div>
@@ -184,16 +223,43 @@
             <div
                 class="p-2 px-3 chat-message-bubble shadow-sm"
                 :style="{
-                  'background-color': isCurrentUserMessage(msg) ? settings.accentColor : '#202c33',
-                  'color': '#e9edef',
+                  'background-color': isCurrentUserMessage(msg) ? settings.accentColor : '#d7ebff',
+                  'color': '#163d66',
                   'border-radius': isCurrentUserMessage(msg) ? '8px 0px 8px 8px' : '0px 8px 8px 8px',
                   'max-width': '65%',
                   'position': 'relative'
                 }"
                 style="font-size: 0.9rem;"
             >
-              <div style="word-break: break-word;">{{ msg.body }}</div>
-              <div class="text-end" style="font-size: 0.65rem; color: #8696a0; margin-top: 4px;">
+              <template v-if="getMessageAttachment(msg)">
+                <img
+                  v-if="getMessageAttachment(msg).kind === 'image'"
+                  :src="getMessageAttachment(msg).url"
+                  class="chat-attachment-image mb-2"
+                  alt="Attachment"
+                >
+                <video
+                  v-else-if="getMessageAttachment(msg).kind === 'video'"
+                  :src="getMessageAttachment(msg).url"
+                  class="chat-attachment-video mb-2"
+                  controls
+                  preload="metadata"
+                  :aria-label="getMessageAttachment(msg).name"
+                >
+                  <track kind="subtitles" label="Subtitles" srclang="en" :src="getMessageAttachment(msg).captionsUrl || ''" default>
+                  <track kind="descriptions" label="Descriptions" srclang="en" :src="getMessageAttachment(msg).descriptionsUrl || getMessageAttachment(msg).captionsUrl || ''">
+                </video>
+                <button
+                  v-if="canDownloadAttachment(getMessageAttachment(msg))"
+                  type="button"
+                  class="btn btn-sm btn-outline-light chat-attachment-download"
+                  @click="downloadAttachment(getMessageAttachment(msg))"
+                >
+                  <i class="bi bi-download me-1"></i>Download
+                </button>
+              </template>
+              <div v-if="shouldShowMessageBody(msg)" style="word-break: break-word;">{{ getVisibleMessageBody(msg) }}</div>
+              <div class="text-end" style="font-size: 0.65rem; color: #163d66; margin-top: 4px;">
                 {{ formatMessageDate(msg.created_at) }}
                 <span v-if="isCurrentUserMessage(msg)" class="ms-1">
                   <i class="bi bi-check2-all text-info"></i>
@@ -204,10 +270,13 @@
         </div>
 
         <!-- Message Input -->
-        <div class="p-3 border-top border-dark" style="background-color: #202c33;">
+        <div class="p-3 border-top border-dark" style="background-color: #d7ebff;">
           <div class="input-group position-relative">
             <button class="btn btn-outline-secondary" type="button" @click="toggleEmojiPicker">
               <i class="bi bi-emoji-smile"></i>
+            </button>
+            <button class="btn btn-outline-secondary" type="button" @click="triggerAttachmentPicker" title="Attach file, image, or video">
+              <i class="bi bi-paperclip"></i>
             </button>
             <div v-if="showEmojiPicker" class="emoji-picker">
               <button
@@ -235,12 +304,31 @@
               <i class="bi bi-send-fill"></i>
             </button>
           </div>
+
+          <div v-if="selectedAttachment" class="attachment-preview mt-2 d-flex align-items-center justify-content-between gap-2">
+            <div class="d-flex align-items-center gap-2 text-truncate flex-grow-1">
+              <i class="bi" :class="selectedAttachment.kind === 'image' ? 'bi-image' : selectedAttachment.kind === 'video' ? 'bi-camera-video' : 'bi-file-earmark-text'"></i>
+              <div class="text-truncate">
+                <div class="small fw-semibold text-truncate">{{ selectedAttachment.name || selectedAttachment.kindLabel }}</div>
+                <small class="text-muted">{{ selectedAttachment.kindLabel }} · {{ formatFileSize(selectedAttachment.size) }}</small>
+              </div>
+            </div>
+            <button type="button" class="btn btn-sm btn-outline-light" @click="clearSelectedAttachment">Remove</button>
+          </div>
+
+          <input
+            ref="attachmentInput"
+            type="file"
+            class="d-none"
+            accept="image/*,video/*,.pdf,.doc,.docx,.txt,.rtf,.xls,.xlsx,.ppt,.pptx,.csv,.zip,.rar"
+            @change="handleAttachmentChange"
+          >
         </div>
       </div>
       <!-- Empty State when no user is selected -->
-      <div class="chat-main justify-content-center align-items-center" style="background-color: #0b141a; color: #e9edef;" v-else-if="showChatPane && !isDetailsOpen">
+      <div class="chat-main justify-content-center align-items-center" style="background-color: #eaf4ff; color: #163d66;" v-else-if="showChatPane && !isDetailsOpen">
         <div class="text-center p-5">
-          <i class="bi bi-people-fill" style="font-size: 3rem; color: #ccc;"></i>
+          <i class="bi bi-people-fill" style="font-size: 3rem; color: #8fb6e0;"></i>
           <h3 class="mt-3 text-muted">Select a user to start chatting</h3>
           <p class="text-muted">Search and select a friend from the list to view your conversation</p>
         </div>
@@ -275,17 +363,20 @@
             <button type="button" class="btn btn-outline-danger" @click="resetSettings">Reset</button>
             <button type="button" class="btn btn-primary" @click="updateProfile">Save</button>
           </div>
+
+          <div class="powered-by-text mt-3 text-center">Powered by CodeHelio</div>
         </div>
       </div>
 
       <div v-if="showUserDetails" class="settings-overlay" @click.self="closeUserDetails">
         <div class="settings-card">
           <div class="d-flex justify-content-between align-items-center mb-3">
-            <h5 class="mb-0">User Details</h5>
+            <h5 class="mb-0">Profile Details</h5>
             <button type="button" class="btn btn-sm btn-outline-secondary" @click="closeUserDetails">
               <i class="bi bi-x-lg"></i>
             </button>
           </div>
+          <p class="details-note">Friendly view of the selected chat profile.</p>
 
           <div v-if="isUserDetailsLoading" class="text-center text-muted py-4">Loading details...</div>
           <div v-else-if="userDetailsError" class="alert alert-danger py-2 mb-0">{{ userDetailsError }}</div>
@@ -297,22 +388,73 @@
             </div>
 
             <div class="user-details-grid">
-              <div>
-                <small class="text-muted d-block">Name</small>
-                <div>{{ userDetails?.name || 'Unknown User' }}</div>
+              <div class="details-item">
+                <small class="details-label">Full name</small>
+                <div class="details-value">{{ userDetails?.name || 'Unknown user' }}</div>
               </div>
-              <div v-if="userDetails?.email">
-                <small class="text-muted d-block">Email</small>
-                <div class="text-break">{{ userDetails.email }}</div>
+              <div class="details-item">
+                <small class="details-label">Email</small>
+                <div class="details-value text-break">{{ userDetails?.email || 'Not available' }}</div>
               </div>
-              <div v-if="userDetails?.username">
-                <small class="text-muted d-block">Username</small>
-                <div>{{ userDetails.username }}</div>
+              <div class="details-item">
+                <small class="details-label">Username</small>
+                <div class="details-value">{{ userDetails?.username || 'Not set' }}</div>
               </div>
-              <div v-if="userDetails?.created_at">
-                <small class="text-muted d-block">Joined</small>
-                <div>{{ formatProfileDate(userDetails.created_at) }}</div>
+              <div class="details-item">
+                <small class="details-label">Joined</small>
+                <div class="details-value">{{ formatProfileDate(userDetails?.created_at) || 'Not available' }}</div>
               </div>
+            </div>
+          </template>
+        </div>
+      </div>
+
+      <div v-if="showGroupDetails" class="settings-overlay" @click.self="closeGroupDetails">
+        <div class="settings-card">
+          <div class="d-flex justify-content-between align-items-center mb-3">
+            <h5 class="mb-0">Group Details</h5>
+            <button type="button" class="btn btn-sm btn-outline-secondary" @click="closeGroupDetails">
+              <i class="bi bi-x-lg"></i>
+            </button>
+          </div>
+          <p class="details-note">Group details are available from the active group chat header.</p>
+
+          <template v-if="activeGroupDetails">
+            <div class="user-details-grid">
+              <div class="details-item">
+                <small class="details-label">Group name</small>
+                <div class="details-value">{{ activeGroupDetails?.name || 'Untitled Group' }}</div>
+              </div>
+              <div class="details-item">
+                <small class="details-label">Members</small>
+                <div class="details-value">{{ activeGroupDetails?.members?.length || 0 }}</div>
+              </div>
+              <div class="details-item">
+                <small class="details-label">Created</small>
+                <div class="details-value">{{ formatProfileDate(activeGroupDetails?.created_at) || 'Not available' }}</div>
+              </div>
+            </div>
+
+            <div class="group-members-list mt-3">
+              <div
+                v-for="member in (activeGroupDetails?.members || [])"
+                :key="`group-details-${activeGroupDetails?.id}-${member?.id}`"
+                class="group-member-item d-flex align-items-center justify-content-between p-2 mb-2 rounded"
+              >
+                <div class="d-flex align-items-center gap-2">
+                  <span class="rounded-circle bg-secondary d-flex align-items-center justify-content-center" style="width: 32px; height: 32px; flex-shrink: 0;">
+                    <span class="text-white small">{{ (member?.name?.charAt(0) || '?').toUpperCase() }}</span>
+                  </span>
+                  <div class="small" style="color: #163d66;">{{ member?.name || 'Unknown User' }}</div>
+                </div>
+                <small class="text-muted">{{ sameUserId(member?.id, currentUserId) ? 'You' : 'Member' }}</small>
+              </div>
+            </div>
+
+            <div class="d-flex gap-2 justify-content-end mt-3">
+              <button type="button" class="btn btn-outline-secondary" @click="closeGroupDetails">Close</button>
+              <button type="button" class="btn btn-outline-primary" @click="openGroupChatFromDetails">Open Chat</button>
+              <button type="button" class="btn btn-primary" @click="openGroupSettingsFromDetails">Manage Group</button>
             </div>
           </template>
         </div>
@@ -321,36 +463,127 @@
       <div v-if="showCallHistoryDetails" class="settings-overlay" @click.self="closeCallHistoryDetails">
         <div class="settings-card">
           <div class="d-flex justify-content-between align-items-center mb-3">
-            <h5 class="mb-0">Call History Details</h5>
+            <h5 class="mb-0">Call Details</h5>
             <button type="button" class="btn btn-sm btn-outline-secondary" @click="closeCallHistoryDetails">
               <i class="bi bi-x-lg"></i>
             </button>
           </div>
+          <p class="details-note">Opened from the call details button for a quick, readable summary.</p>
+
+          <div v-if="selectedCallHistory.length" class="mb-3">
+            <small class="details-label">All call history</small>
+            <div class="call-history-list">
+              <button
+                v-for="(item, index) in selectedCallHistory"
+                :key="item.id || `${item.started_at}-${index}`"
+                type="button"
+                class="call-history-item"
+                :class="{ active: isCallHistoryItemActive(item) }"
+                @click="openCallHistoryDetails(item)"
+              >
+                <span class="call-history-item-title">{{ formatCallHistoryTitle(item) }}</span>
+                <span class="call-history-item-subtitle">{{ formatCallHistorySubtitle(item) }}</span>
+              </button>
+            </div>
+          </div>
 
           <div v-if="activeCallHistoryItem" class="user-details-grid">
-            <div>
-              <small class="text-muted d-block">Direction</small>
-              <div>{{ activeCallHistoryItem.direction || 'outgoing' }}</div>
+            <div class="call-details-summary">
+              <span class="call-badge" :class="callDirectionBadgeClass(activeCallHistoryItem.direction)">
+                {{ formatCallDirectionLabel(activeCallHistoryItem.direction) }}
+              </span>
+              <span class="call-badge" :class="callStatusBadgeClass(activeCallHistoryItem.status)">
+                {{ formatCallStatusLabel(activeCallHistoryItem.status) }}
+              </span>
             </div>
             <div>
-              <small class="text-muted d-block">Status</small>
-              <div>{{ (activeCallHistoryItem.status || 'ended').toString().replace(/_/g, ' ') }}</div>
+              <small class="details-label">Caller</small>
+              <div class="details-value">{{ getCallSenderName(activeCallHistoryItem) }}</div>
             </div>
             <div>
-              <small class="text-muted d-block">Started</small>
-              <div>{{ formatCallDetailDateTime(activeCallHistoryItem.started_at) || 'N/A' }}</div>
+              <small class="details-label">Callee</small>
+              <div class="details-value">{{ getCallReceiverName(activeCallHistoryItem) }}</div>
             </div>
             <div>
-              <small class="text-muted d-block">Ended</small>
-              <div>{{ formatCallDetailDateTime(activeCallHistoryItem.ended_at) || 'N/A' }}</div>
+              <small class="details-label">Started</small>
+              <div class="details-value">{{ formatCallDetailDateTime(activeCallHistoryItem.started_at) || 'Not available' }}</div>
             </div>
             <div>
-              <small class="text-muted d-block">Duration</small>
-              <div>{{ formatCallDuration(activeCallHistoryItem.duration_seconds) }}</div>
+              <small class="details-label">Ended</small>
+              <div class="details-value">{{ formatCallDetailDateTime(activeCallHistoryItem.ended_at) || 'Not available' }}</div>
+            </div>
+            <div>
+              <small class="details-label">Duration</small>
+              <div class="details-value">{{ formatCallDuration(activeCallHistoryItem.duration_seconds) }}</div>
             </div>
             <div v-if="activeCallHistoryItem.meta">
-              <small class="text-muted d-block">Meta</small>
+              <small class="details-label">Extra details</small>
               <pre class="call-history-meta mb-0">{{ formatCallMeta(activeCallHistoryItem.meta) }}</pre>
+            </div>
+          </div>
+          <div v-else class="text-muted text-center py-3">No call selected. Click the call details button in chat header.</div>
+        </div>
+      </div>
+
+      <div v-if="showIncomingCallModal" class="settings-overlay" @click.self="rejectIncomingCall('rejected')">
+        <div class="settings-card incoming-call-card">
+          <div class="text-center">
+            <div class="incoming-call-photo mb-3">
+              <img
+                v-if="incomingCallerPhoto"
+                :src="incomingCallerPhoto"
+                class="rounded-circle"
+                style="width: 120px; height: 120px; object-fit: cover; border: 4px solid #b9d8ff;"
+                alt="Caller"
+              >
+              <div v-else class="rounded-circle bg-secondary d-flex align-items-center justify-content-center" style="width: 120px; height: 120px; margin: 0 auto; border: 4px solid #b9d8ff;">
+                <span class="text-white" style="font-size: 2rem;">{{ (incomingCallDisplayName || '?').charAt(0).toUpperCase() }}</span>
+              </div>
+            </div>
+            <div class="incoming-call-icon mb-2">
+              <i class="bi bi-telephone-fill"></i>
+            </div>
+            <h5 class="mb-1">Incoming Call</h5>
+            <p class="text-muted mb-3">{{ incomingCallDisplayName }}</p>
+            <div class="d-flex gap-2 justify-content-center">
+              <button
+                type="button"
+                class="btn btn-danger"
+                :disabled="isCallActionPending"
+                @click="rejectIncomingCall('rejected')"
+              >
+                <i class="bi bi-telephone-x me-2"></i>Decline
+              </button>
+              <button
+                type="button"
+                class="btn btn-success"
+                :disabled="isCallActionPending"
+                @click="acceptIncomingCall"
+              >
+                <i class="bi bi-telephone me-2"></i>Accept
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div v-if="showOutgoingCallModal" class="settings-overlay" @click.self="endCurrentCall">
+        <div class="settings-card incoming-call-card">
+          <div class="text-center">
+            <div class="incoming-call-icon mb-2">
+              <i class="bi bi-telephone-outbound-fill"></i>
+            </div>
+            <h5 class="mb-1">Calling...</h5>
+            <p class="text-muted mb-3">{{ outgoingCallDisplayName }} · {{ outgoingCallStatusText }}</p>
+            <div class="d-flex gap-2 justify-content-center">
+              <button
+                type="button"
+                class="btn btn-danger"
+                :disabled="isCallActionPending"
+                @click="endCurrentCall"
+              >
+                End Call
+              </button>
             </div>
           </div>
         </div>
@@ -359,6 +592,124 @@
       <audio ref="remoteAudio" autoplay style="display: none;"></audio>
     </div>
   </div>
+
+  <div v-if="showGroupManager" class="settings-overlay" @click.self="closeGroupManager">
+    <div class="settings-card group-card">
+      <div class="d-flex justify-content-between align-items-center mb-3">
+        <h5 class="mb-0">{{ editingGroupId ? 'Edit Group' : 'Create Group' }}</h5>
+        <button type="button" class="btn btn-sm btn-outline-secondary" @click="closeGroupManager">
+          <i class="bi bi-x-lg"></i>
+        </button>
+      </div>
+
+          <div class="mb-3">
+            <label class="form-label mb-1" for="group-name-input">Group name</label>
+            <input id="group-name-input" v-model="groupForm.name" type="text" class="form-control" placeholder="Enter group name">
+          </div>
+
+      <div class="mb-2">
+        <small class="text-muted d-block mb-2">Select members</small>
+        <div class="group-member-picker">
+          <label v-for="user in groupCandidateUsers" :key="user.id" class="group-member-row">
+            <input type="checkbox" class="form-check-input me-2" :value="user.id" v-model="groupForm.members">
+            <span class="flex-grow-1">{{ user.name || 'Unknown User' }}</span>
+          </label>
+        </div>
+      </div>
+
+      <div class="d-flex gap-2 justify-content-end">
+        <button type="button" class="btn btn-outline-secondary" @click="closeGroupManager">Cancel</button>
+        <button type="button" class="btn btn-primary" @click="saveGroup">Save Group</button>
+      </div>
+    </div>
+  </div>
+
+  <div v-if="showGroupSettings" class="settings-overlay" @click.self="closeGroupSettings">
+    <div class="settings-card group-card">
+      <div class="d-flex justify-content-between align-items-center mb-3">
+        <h5 class="mb-0">{{ editingGroupForSettings?.name || 'Group' }} - Members</h5>
+        <button type="button" class="btn btn-sm btn-outline-secondary" @click="closeGroupSettings">
+          <i class="bi bi-x-lg"></i>
+        </button>
+      </div>
+
+      <div class="mb-3">
+        <div class="d-flex gap-2 mb-2">
+          <span class="text-muted">Add members to this group</span>
+          <button
+            type="button"
+            class="btn btn-sm btn-primary"
+            @click="showAddMemberForm = !showAddMemberForm"
+          >
+            <i class="bi bi-plus-lg"></i> Add
+          </button>
+        </div>
+
+        <div v-if="showAddMemberForm" class="mb-3 p-2 bg-dark rounded">
+          <small class="text-muted d-block mb-2">Select users to add:</small>
+          <div class="group-member-picker" style="max-height: 200px;">
+            <label v-for="user in availableUsersForGroup" :key="user.id" class="group-member-row">
+              <input
+                type="checkbox"
+                class="form-check-input me-2"
+                :value="user.id"
+                v-model="newGroupMembers"
+              >
+              <span class="flex-grow-1">{{ user.name || 'Unknown User' }}</span>
+            </label>
+          </div>
+          <div class="d-flex gap-2 mt-2 justify-content-end">
+            <button
+              type="button"
+              class="btn btn-sm btn-outline-secondary"
+              @click="showAddMemberForm = false"
+            >Cancel</button>
+            <button
+              type="button"
+              class="btn btn-sm btn-primary"
+              @click="addMembersToGroup"
+            >Add Selected</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="mb-2">
+        <small class="text-muted d-block mb-2">Group Members ({{ editingGroupForSettings?.members?.length || 0 }})</small>
+        <div class="group-members-list">
+          <div
+            v-for="member in editingGroupForSettings?.members"
+            :key="member.id"
+            class="group-member-item d-flex align-items-center justify-content-between p-2 mb-2 bg-dark rounded"
+          >
+            <div class="d-flex align-items-center gap-2">
+              <span class="rounded-circle bg-secondary d-flex align-items-center justify-content-center" style="width: 32px; height: 32px; flex-shrink: 0;">
+                <span class="text-white small">{{ (member.name?.charAt(0) || '?').toUpperCase() }}</span>
+              </span>
+              <div>
+                <div class="text-white small">{{ member.name || 'Unknown User' }}</div>
+                <small class="text-muted">{{ sameUserId(member.id, currentUserId) ? 'You (Admin)' : 'Member' }}</small>
+              </div>
+            </div>
+            <button
+              v-if="!sameUserId(member.id, currentUserId)"
+              type="button"
+              class="btn btn-sm btn-outline-danger"
+              @click="removeMemberFromGroup(member.id)"
+              title="Remove member"
+            >
+              <i class="bi bi-trash"></i>
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <div class="d-flex gap-2 justify-content-end mt-3">
+        <button type="button" class="btn btn-outline-secondary" @click="closeGroupSettings">Close</button>
+        <button type="button" class="btn btn-outline-danger" @click="deleteGroup">Delete Group</button>
+      </div>
+    </div>
+  </div>
+
 </template>
 
 <script>
@@ -389,6 +740,8 @@ export default {
     const showSettings = ref(false)
     const showHeaderMenu = ref(false)
     const showUserDetails = ref(false)
+    const showGroupDetails = ref(false)
+    const activeGroupDetails = ref(null)
     const isUserDetailsLoading = ref(false)
     const userDetails = ref(null)
     const userDetailsError = ref('')
@@ -398,7 +751,7 @@ export default {
     const emojiList = ['😀', '😂', '😍', '😎', '😊', '😁', '🤔', '😢', '👍', '🙏', '🔥', '🎉', '❤️', '💬', '✅', '🙌']
     const currentUserPhoto = ref('')
     const defaultSettings = {
-      accentColor: '#005c4b'
+      accentColor: '#60a5fa'
     }
     const settings = ref({ ...defaultSettings })
     const profileForm = ref({
@@ -409,23 +762,219 @@ export default {
     const profilePreviewUrl = ref('')
     const currentLocation = ref('Locating...')
     const currentWeather = ref('Weather...')
+    const now = ref(new Date())
+    const dateTickIntervalId = ref(null)
+    const weatherRefreshIntervalId = ref(null)
+    const weatherRefreshInFlight = ref(false)
     const pc = ref(null)
+    const localAudioStream = ref(null)
     const partnerId = ref(null)
     const remoteAudio = ref(null)
     const callStartedAt = ref(null)
     const selectedCallHistory = ref([])
+    const showIncomingCallModal = ref(false)
+    const showOutgoingCallModal = ref(false)
+    const incomingCall = ref(null)
+    const outgoingCall = ref(null)
+    const isCallActionPending = ref(false)
+    const incomingCallTimeoutId = ref(null)
+    const attachmentInput = ref(null)
+    const selectedAttachment = ref(null)
     const activeChannelNames = ref([])
     const knownChatUserIds = ref([])
     const latestProfileRequestId = ref(0)
+    const pendingIceCandidates = ref([])
+    const isInitialLoading = ref(true)
     const updateViewportMode = () => {
       isMobileView.value = window.innerWidth < 768;
       if (!isMobileView.value) {
         activeMobilePane.value = 'list';
       }
     };
-    // Get current date in DD/MM/YYYY format
+
+    const getAttachmentKind = (file) => {
+      if (!file) return 'file'
+      if (file.type?.startsWith('image/')) return 'image'
+      if (file.type?.startsWith('video/')) return 'video'
+      return 'document'
+    }
+
+    const formatFileSize = (bytes) => {
+      const size = Number(bytes || 0)
+      if (!size) return '0 B'
+
+      const units = ['B', 'KB', 'MB', 'GB']
+      let unitIndex = 0
+      let value = size
+
+      while (value >= 1024 && unitIndex < units.length - 1) {
+        value /= 1024
+        unitIndex += 1
+      }
+
+      return `${value.toFixed(value >= 10 || unitIndex === 0 ? 0 : 1)} ${units[unitIndex]}`
+    }
+
+    const normalizeAttachment = (attachment, fallback = {}) => {
+      if (!attachment) return null
+
+      const url = attachment.url || attachment.preview_url || attachment.attachment_url || attachment.file_url || attachment.media_url || attachment.path || attachment.file_path || attachment.attachment_path || fallback?.url || ''
+      const name = attachment.name || attachment.original_name || attachment.file_name || attachment.filename || fallback?.name || ''
+      const mimeType = attachment.mime_type || attachment.type || attachment.content_type || fallback?.mimeType || ''
+      const rawKind = (attachment.kind || fallback?.kind || '').toString().trim()
+      const size = Number(attachment.size || attachment.file_size || fallback?.size || 0)
+
+      // Empty fallback objects should not be treated as real attachments.
+      const hasAttachmentData = Boolean(url || name || mimeType || rawKind || size > 0)
+      if (!hasAttachmentData) {
+        return null
+      }
+
+      const kind = rawKind || getAttachmentKind({ type: mimeType })
+
+      return { url, name, mimeType, kind, size }
+    }
+
+    const getMessageAttachment = (msg) => {
+      if (!msg) return null
+
+      return normalizeAttachment(
+        msg.attachment || msg.file || msg.media || {
+          url: msg.attachment_url || msg.file_url || msg.media_url || msg.file_path || msg.attachment_path,
+          name: msg.attachment_name || msg.file_name || msg.original_name || msg.filename,
+          mime_type: msg.attachment_mime_type || msg.mime_type || msg.file_type,
+          kind: msg.attachment_kind || msg.message_kind,
+          size: msg.attachment_size || msg.file_size,
+        },
+        { url: '', name: '', mimeType: '', size: 0 }
+      )
+    }
+
+    const triggerAttachmentPicker = () => {
+      attachmentInput.value?.click()
+    }
+
+    const clearSelectedAttachment = () => {
+      if (selectedAttachment.value?.previewUrl) {
+        URL.revokeObjectURL(selectedAttachment.value.previewUrl)
+      }
+      selectedAttachment.value = null
+      if (attachmentInput.value) {
+        attachmentInput.value.value = ''
+      }
+    }
+
+    const handleAttachmentChange = (event) => {
+      const file = event?.target?.files?.[0]
+      if (!file) return
+
+      if (selectedAttachment.value?.previewUrl) {
+        URL.revokeObjectURL(selectedAttachment.value.previewUrl)
+      }
+
+      const kind = getAttachmentKind(file)
+      const previewUrl = kind === 'image' || kind === 'video' ? URL.createObjectURL(file) : ''
+      let kindLabel = 'Document'
+
+      if (kind === 'image') {
+        kindLabel = 'Image'
+      } else if (kind === 'video') {
+        kindLabel = 'Video'
+      }
+
+      selectedAttachment.value = {
+        file,
+        kind,
+        kindLabel,
+        name: file.name,
+        size: file.size,
+        mimeType: file.type,
+        previewUrl,
+      }
+    }
+
+    const setupPeerConnection = () => {
+      if (pc.value) return pc.value
+
+      const connection = new RTCPeerConnection({
+        iceServers: [{ urls: 'stun:stun.l.google.com:19302' }]
+      })
+
+      connection.ontrack = (e) => {
+        if (remoteAudio.value) {
+          remoteAudio.value.srcObject = e.streams[0]
+        }
+      }
+
+      connection.onicecandidate = (e) => {
+        if (e.candidate && partnerId.value) {
+          CallService.sendIce(partnerId.value, e.candidate)
+        }
+      }
+
+      pc.value = connection
+      return connection
+    }
+
+    const ensurePeerConnection = async () => {
+      const connection = setupPeerConnection()
+
+      if (!localAudioStream.value) {
+        try {
+          localAudioStream.value = await navigator.mediaDevices.getUserMedia({ audio: true })
+        } catch (error) {
+          console.warn('Unable to access microphone:', error)
+          return null
+        }
+      }
+
+      const hasAudioTrack = connection.getSenders?.().some((sender) => sender.track?.kind === 'audio')
+      if (!hasAudioTrack && localAudioStream.value) {
+        localAudioStream.value.getTracks().forEach((track) => connection.addTrack(track, localAudioStream.value))
+      }
+
+      return connection
+    }
+
+    const teardownPeerConnection = () => {
+      if (remoteAudio.value) {
+        remoteAudio.value.srcObject = null
+      }
+
+      if (pc.value) {
+        try {
+          pc.value.ontrack = null
+          pc.value.onicecandidate = null
+          pc.value.getSenders?.().forEach((sender) => {
+            try {
+              sender.track?.stop?.()
+            } catch {
+              // ignore
+            }
+          })
+          pc.value.close()
+        } catch (error) {
+          console.warn('Peer connection teardown failed:', error)
+        }
+      }
+
+      pc.value = null
+
+      if (localAudioStream.value) {
+        localAudioStream.value.getTracks().forEach((track) => track.stop())
+        localAudioStream.value = null
+      }
+    }
+
+    const clearCallSessionState = () => {
+      clearIncomingCallState()
+      clearOutgoingCallState()
+      callStartedAt.value = null
+      partnerId.value = null
+    }
+    // Keep footer date reactive instead of computed once at mount time.
     const currentDate = computed(() => {
-      const today = new Date();
+      const today = now.value;
       const day = String(today.getDate()).padStart(2, '0');
       const month = String(today.getMonth() + 1).padStart(2, '0');
       const year = today.getFullYear();
@@ -461,8 +1010,8 @@ export default {
 
     const fetchWeatherAndLocation = async (latitude, longitude) => {
       try {
-        const weatherUrl = `https://api.open-meteo.com/v1/forecast?latitude=${latitude}&longitude=${longitude}&current=temperature_2m,weather_code&timezone=auto`
-        const locationUrl = `https://geocoding-api.open-meteo.com/v1/reverse?latitude=${latitude}&longitude=${longitude}&language=en&format=json`
+        const weatherUrl = `/api/weather?latitude=${latitude}&longitude=${longitude}&current=temperature_2m,weather_code&timezone=auto`
+        const locationUrl = `/api/location?latitude=${latitude}&longitude=${longitude}&language=en&format=json`
 
         const [weatherRes, locationRes] = await Promise.all([
           fetch(weatherUrl),
@@ -496,28 +1045,46 @@ export default {
       }
     }
 
-    const loadCurrentWeather = () => {
+    const loadCurrentWeather = async () => {
       if (!navigator?.geolocation) {
         currentWeather.value = 'Weather unavailable'
         currentLocation.value = 'Location unavailable'
         return
       }
 
-      navigator.geolocation.getCurrentPosition(
-        (position) => {
-          const { latitude, longitude } = position.coords
-          fetchWeatherAndLocation(latitude, longitude)
-        },
-        () => {
-          currentWeather.value = 'Weather unavailable'
-          currentLocation.value = 'Location denied'
-        },
-        { timeout: 10000 }
-      )
+      await new Promise((resolve) => {
+        navigator.geolocation.getCurrentPosition(
+          async (position) => {
+            const { latitude, longitude } = position.coords
+            await fetchWeatherAndLocation(latitude, longitude)
+            resolve()
+          },
+          () => {
+            currentWeather.value = 'Weather unavailable'
+            currentLocation.value = 'Location denied'
+            resolve()
+          },
+          { timeout: 10000 }
+        )
+      })
+    }
+
+    const refreshWeatherAndLocation = async () => {
+      if (weatherRefreshInFlight.value) {
+        return
+      }
+
+      weatherRefreshInFlight.value = true
+      try {
+        await loadCurrentWeather()
+      } finally {
+        weatherRefreshInFlight.value = false
+      }
     }
 
     const settingsStorageKey = computed(() => `chatapp.settings.${currentUserId.value || 'guest'}`)
     const chatUsersStorageKey = computed(() => `chatapp.chatUsers.${currentUserId.value || 'guest'}`)
+    const groupStorageKey = computed(() => `chatapp.groups.${currentUserId.value || 'guest'}`)
 
     const displayCurrentUserName = computed(() => currentUserName.value || 'User')
 
@@ -555,6 +1122,317 @@ export default {
         knownChatUserIds.value = Array.isArray(parsed) ? parsed : []
       } catch {
         knownChatUserIds.value = []
+      }
+    }
+
+    const groups = ref([])
+    const showGroupManager = ref(false)
+    const editingGroupId = ref(null)
+    const groupForm = ref({
+      name: '',
+      members: [],
+    })
+    const showGroupSettings = ref(false)
+    const editingGroupForSettings = ref(null)
+    const showAddMemberForm = ref(false)
+    const newGroupMembers = ref([])
+
+    const loadLocalGroups = () => {
+      try {
+        const raw = localStorage.getItem(groupStorageKey.value)
+        if (!raw) {
+          return []
+        }
+
+        const parsed = JSON.parse(raw)
+        return Array.isArray(parsed) ? parsed : []
+      } catch {
+        return []
+      }
+    }
+
+    const persistGroups = () => {
+      localStorage.setItem(groupStorageKey.value, JSON.stringify(groups.value))
+    }
+
+    const normalizeServerGroup = (group, localGroup = null) => {
+      const members = Array.isArray(group?.members)
+        ? group.members.map((member) => normalizeGroupMember({
+            id: member?.id,
+            name: member?.name,
+            profile_photo_path: member?.profile_photo_path,
+            profile_photo_url: member?.profile_photo_url,
+          })).filter(Boolean)
+        : (localGroup?.members || [])
+
+      return {
+        id: group?.id,
+        name: group?.name || localGroup?.name || 'Untitled Group',
+        created_by: group?.created_by ?? group?.creator?.id ?? localGroup?.created_by ?? null,
+        created_at: group?.created_at || localGroup?.created_at || new Date().toISOString(),
+        members,
+        messages: Array.isArray(localGroup?.messages) ? localGroup.messages : [],
+        type: 'group',
+      }
+    }
+
+    const loadGroups = async () => {
+      const localGroups = loadLocalGroups()
+
+      try {
+        const response = await allService.getGroups()
+        const serverGroups = Array.isArray(response?.groups)
+          ? response.groups
+          : (Array.isArray(response?.data) ? response.data : [])
+
+        groups.value = serverGroups.map((group) => {
+          const localMatch = localGroups.find((item) => sameUserId(item?.id, group?.id))
+          return normalizeServerGroup(group, localMatch)
+        })
+        persistGroups()
+      } catch (error) {
+        console.warn('Falling back to local groups:', error?.response?.data || error?.message || error)
+        groups.value = localGroups
+      }
+    }
+
+    const normalizeGroupMember = (member) => {
+      if (!member) {
+        return null
+      }
+
+      const id = member?.id ?? member
+      const user = userView.value.find((item) => sameUserId(item?.id, id))
+
+      return {
+        id,
+        name: member?.name || user?.name || `User #${id}`,
+      }
+    }
+
+    const isGroupConversation = (conversation) => Boolean(conversation?.type === 'group' || conversation?.group_id)
+
+    const formatGroupPreview = (group) => {
+      const members = Array.isArray(group?.members) ? group.members : []
+      const names = members.map((member) => member?.name).filter(Boolean).slice(0, 3)
+      const extraCount = Math.max(0, members.length - names.length)
+      const prefix = names.length ? names.join(', ') : 'No members yet'
+      return extraCount > 0 ? `${prefix} +${extraCount} more · you` : `${prefix} · you`
+    }
+
+    const groupCandidateUsers = computed(() =>
+      userView.value.filter((user) => !sameUserId(user?.id, currentUserId.value))
+    )
+
+    const filteredGroups = computed(() => {
+      const term = searchQuery.value.trim().toLowerCase()
+
+      return groups.value.filter((group) => {
+        if (!term) return true
+
+        const memberNames = (group.members || []).map((member) => member.name || '').join(' ')
+        return (
+          (group.name || '').toLowerCase().includes(term) ||
+          memberNames.toLowerCase().includes(term)
+        )
+      })
+    })
+
+    const visibleGroups = computed(() => filteredGroups.value.slice(0, 10))
+
+    const loadGroupMessages = async (groupId) => {
+      const group = groups.value.find((item) => sameUserId(item.id, groupId))
+      chat.value.messages = Array.isArray(group?.messages) ? group.messages : []
+    }
+
+    const saveGroup = async () => {
+      const name = (groupForm.value.name || '').trim()
+      const selectedIds = Array.from(new Set((groupForm.value.members || []).map(Number)))
+
+      if (!name || selectedIds.length < 1) {
+        return
+      }
+
+      try {
+        if (editingGroupId.value) {
+          await allService.updateGroup(editingGroupId.value, { name })
+        } else {
+          await allService.createGroup({ name, user_ids: selectedIds })
+        }
+
+        await loadGroups()
+        closeGroupManager()
+      } catch (error) {
+        console.error('Failed to save group:', error?.response?.data || error?.message || error)
+      }
+    }
+
+    const openGroupManager = (group = null) => {
+      showHeaderMenu.value = false
+      editingGroupId.value = group?.id || null
+
+      if (group) {
+        groupForm.value = {
+          name: group.name || '',
+          members: (group.members || [])
+            .filter((member) => !sameUserId(member.id, currentUserId.value))
+            .map((member) => member.id),
+        }
+      } else {
+        groupForm.value = { name: '', members: [] }
+      }
+
+      showGroupManager.value = true
+    }
+
+    const closeGroupManager = () => {
+      showGroupManager.value = false
+      editingGroupId.value = null
+      groupForm.value = { name: '', members: [] }
+    }
+
+    const openGroupSettings = (group) => {
+      if (!group) return
+
+      const freshGroup = groups.value.find((item) => sameUserId(item.id, group.id)) || group
+      editingGroupForSettings.value = freshGroup
+      showAddMemberForm.value = false
+      newGroupMembers.value = []
+      showGroupSettings.value = true
+    }
+
+    const closeGroupSettings = () => {
+      showGroupSettings.value = false
+      editingGroupForSettings.value = null
+      showAddMemberForm.value = false
+      newGroupMembers.value = []
+    }
+
+    const openGroupDetails = (group) => {
+      if (!group) return
+
+      activeGroupDetails.value = group
+      showGroupDetails.value = true
+    }
+
+    const closeGroupDetails = () => {
+      showGroupDetails.value = false
+      activeGroupDetails.value = null
+    }
+
+    const openGroupChatFromDetails = async () => {
+      if (!activeGroupDetails.value) return
+
+      await selectGroup(activeGroupDetails.value)
+      closeGroupDetails()
+    }
+
+    const openGroupSettingsFromDetails = () => {
+      if (!activeGroupDetails.value) return
+
+      const targetGroup = activeGroupDetails.value
+      closeGroupDetails()
+      openGroupSettings(targetGroup)
+    }
+
+    const availableUsersForGroup = computed(() => {
+      const currentMembers = new Set((editingGroupForSettings.value?.members || []).map((member) => String(member.id)))
+      return userView.value.filter((user) => !currentMembers.has(String(user.id)) && !sameUserId(user.id, currentUserId.value))
+    })
+
+    const addMembersToGroup = async () => {
+      if (!editingGroupForSettings.value || !newGroupMembers.value.length) return
+
+      try {
+        await allService.addGroupMembers(editingGroupForSettings.value.id, newGroupMembers.value)
+        await loadGroups()
+
+        const updatedGroup = groups.value.find((group) => sameUserId(group.id, editingGroupForSettings.value.id))
+        if (updatedGroup) {
+          editingGroupForSettings.value = updatedGroup
+
+          if (selectedUser.value && sameUserId(selectedUser.value.id, updatedGroup.id)) {
+            selectedUser.value = { ...selectedUser.value, ...updatedGroup, type: 'group' }
+          }
+        }
+
+        showAddMemberForm.value = false
+        newGroupMembers.value = []
+      } catch (error) {
+        console.error('Failed to add group members:', error?.response?.data || error?.message || error)
+      }
+    }
+
+    const removeMemberFromGroup = async (memberId) => {
+      if (!editingGroupForSettings.value || sameUserId(memberId, currentUserId.value)) return
+
+      try {
+        await allService.removeGroupMember(editingGroupForSettings.value.id, memberId)
+        await loadGroups()
+
+        const updatedGroup = groups.value.find((group) => sameUserId(group.id, editingGroupForSettings.value.id))
+        editingGroupForSettings.value = updatedGroup || null
+
+        if (selectedUser.value && updatedGroup && sameUserId(selectedUser.value.id, updatedGroup.id)) {
+          selectedUser.value = { ...selectedUser.value, ...updatedGroup, type: 'group' }
+        }
+      } catch (error) {
+        console.error('Failed to remove member:', error?.response?.data || error?.message || error)
+      }
+    }
+
+    const deleteGroup = async () => {
+      if (!editingGroupForSettings.value) return
+
+      const targetId = editingGroupForSettings.value.id
+      try {
+        await allService.deleteGroup(targetId)
+        await loadGroups()
+        closeGroupSettings()
+
+        if (selectedUser.value && sameUserId(selectedUser.value.id, targetId)) {
+          selectedUser.value = null
+          chat.value.messages = []
+        }
+      } catch (error) {
+        console.error('Failed to delete group:', error?.response?.data || error?.message || error)
+      }
+    }
+
+    const selectGroup = async (group) => {
+      if (!group) {
+        return
+      }
+
+      let resolvedGroup = { ...group, type: 'group' }
+
+      try {
+        const details = await allService.getGroup(group.id)
+        if (details?.group?.id) {
+          const localMatch = groups.value.find((item) => sameUserId(item.id, details.group.id))
+          resolvedGroup = normalizeServerGroup(details.group, localMatch)
+
+          const index = groups.value.findIndex((item) => sameUserId(item.id, resolvedGroup.id))
+          if (index !== -1) {
+            groups.value[index] = { ...groups.value[index], ...resolvedGroup }
+          } else {
+            groups.value.unshift(resolvedGroup)
+          }
+          persistGroups()
+        }
+      } catch {
+        // Keep local group data if detail fetch is unavailable.
+      }
+
+      selectedUser.value = { ...resolvedGroup, type: 'group' }
+      searchQuery.value = ''
+      showEmojiPicker.value = false
+      clearSelectedAttachment()
+      await loadGroupMessages(selectedUser.value.id)
+      selectedCallHistory.value = []
+
+      if (isMobileView.value) {
+        activeMobilePane.value = 'chat'
       }
     }
 
@@ -712,7 +1590,67 @@ export default {
 
     const showSidebarPane = computed(() => !isMobileView.value || activeMobilePane.value === 'list');
     const showChatPane = computed(() => !isMobileView.value || activeMobilePane.value === 'chat');
-    const isDetailsOpen = computed(() => showUserDetails.value || showCallHistoryDetails.value)
+    const isDetailsOpen = computed(() =>
+      showUserDetails.value || showCallHistoryDetails.value || showGroupDetails.value
+    )
+    const incomingCallDisplayName = computed(() => {
+      const fromId = incomingCall.value?.fromId
+
+      if (!fromId) {
+        return 'Unknown caller'
+      }
+
+      if (selectedUser.value && sameUserId(selectedUser.value.id, fromId) && selectedUser.value.name) {
+        return selectedUser.value.name
+      }
+
+      const matchedUser = userView.value.find((user) => sameUserId(user?.id, fromId))
+      if (matchedUser?.name) {
+        return matchedUser.name
+      }
+
+      return `User #${fromId}`
+    })
+
+    const incomingCallerPhoto = computed(() => {
+      const fromId = incomingCall.value?.fromId
+
+      if (!fromId) {
+        return ''
+      }
+
+      if (selectedUser.value && sameUserId(selectedUser.value.id, fromId)) {
+        return getUserPhoto(selectedUser.value)
+      }
+
+      const matchedUser = userView.value.find((user) => sameUserId(user?.id, fromId))
+      if (matchedUser) {
+        return getUserPhoto(matchedUser)
+      }
+
+      return ''
+    })
+
+    const outgoingCallDisplayName = computed(() => {
+      const toId = outgoingCall.value?.toId || partnerId.value
+
+      if (!toId) {
+        return 'Unknown user'
+      }
+
+      if (selectedUser.value && sameUserId(selectedUser.value.id, toId) && selectedUser.value.name) {
+        return selectedUser.value.name
+      }
+
+      const matchedUser = userView.value.find((user) => sameUserId(user?.id, toId))
+      if (matchedUser?.name) {
+        return matchedUser.name
+      }
+
+      return `User #${toId}`
+    })
+
+    const outgoingCallStatusText = computed(() => outgoingCall.value?.status || 'Ringing')
 
     // Without a query, show chat contacts only. With a query, search across fetched users.
     const filteredUsers = computed(() => {
@@ -821,17 +1759,27 @@ export default {
     };
 
     const startCall = async (toId) => {
-      if (!toId || !pc.value) {
+      if (!toId) {
+        return
+      }
+
+      await ensurePeerConnection()
+      if (!pc.value) {
         return
       }
 
       partnerId.value = toId
       callStartedAt.value = new Date().toISOString()
+      outgoingCall.value = {
+        toId,
+        status: 'Ringing',
+      }
+      showOutgoingCallModal.value = true
 
       try {
         const offer = await pc.value.createOffer()
         await pc.value.setLocalDescription(offer)
-        await CallService.startCall(toId, offer)
+        await CallService.startCall(toId, offer?.toJSON ? offer.toJSON() : offer)
         await CallService.saveCallHistory({
           user_id: toId,
           direction: 'outgoing',
@@ -839,6 +1787,10 @@ export default {
           started_at: callStartedAt.value,
         })
         await loadCallHistoryForUser(toId)
+        outgoingCall.value = {
+          toId,
+          status: 'Waiting for answer',
+        }
       } catch (error) {
         console.error('Call start failed:', error?.response?.data || error?.message || error)
         await CallService.saveCallHistory({
@@ -848,6 +1800,9 @@ export default {
           started_at: callStartedAt.value,
           ended_at: new Date().toISOString(),
         })
+        clearOutgoingCallState()
+        clearCallSessionState()
+        teardownPeerConnection()
       }
     }
 
@@ -877,14 +1832,131 @@ export default {
         duration_seconds: durationSeconds,
       })
 
-      callStartedAt.value = null
-      partnerId.value = null
+      clearCallSessionState()
+      teardownPeerConnection()
 
       if (selectedUser.value?.id) {
         const items = await loadCallHistoryForUser(selectedUser.value.id)
         if (items.length) {
           openCallHistoryDetails(items[0])
         }
+      }
+    }
+
+    const clearIncomingCallTimer = () => {
+      if (incomingCallTimeoutId.value) {
+        clearTimeout(incomingCallTimeoutId.value)
+        incomingCallTimeoutId.value = null
+      }
+    }
+
+    const clearIncomingCallState = () => {
+      showIncomingCallModal.value = false
+      incomingCall.value = null
+      isCallActionPending.value = false
+      clearIncomingCallTimer()
+    }
+
+    const clearOutgoingCallState = () => {
+      showOutgoingCallModal.value = false
+      outgoingCall.value = null
+    }
+
+    const rejectIncomingCall = async (status = 'rejected') => {
+      if (!incomingCall.value || isCallActionPending.value) {
+        return
+      }
+
+      isCallActionPending.value = true
+      const fromId = incomingCall.value.fromId
+      const startedAt = incomingCall.value.startedAt || new Date().toISOString()
+      const endedAt = new Date().toISOString()
+
+      try {
+        await CallService.endCall(fromId)
+      } catch (error) {
+        console.warn('Call reject request failed:', error?.response?.data || error?.message || error)
+      }
+
+      await CallService.saveCallHistory({
+        user_id: fromId,
+        direction: 'incoming',
+        status,
+        started_at: startedAt,
+        ended_at: endedAt,
+      })
+
+      clearIncomingCallState()
+
+      if (selectedUser.value && sameUserId(selectedUser.value.id, fromId)) {
+        await loadCallHistoryForUser(fromId)
+      }
+
+      teardownPeerConnection()
+    }
+
+    const acceptIncomingCall = async () => {
+      if (!incomingCall.value || isCallActionPending.value) {
+        return
+      }
+
+      isCallActionPending.value = true
+
+      const fromId = incomingCall.value.fromId
+      const offer = incomingCall.value.offer
+      const startedAt = incomingCall.value.startedAt || new Date().toISOString()
+      partnerId.value = fromId
+      callStartedAt.value = startedAt
+
+      try {
+        await ensurePeerConnection()
+        if (!pc.value) {
+          isCallActionPending.value = false
+          clearIncomingCallState()
+          return
+        }
+
+        await pc.value.setRemoteDescription(new RTCSessionDescription(offer))
+        if (pendingIceCandidates.value.length) {
+          for (const candidate of pendingIceCandidates.value.splice(0)) {
+            try {
+              await pc.value.addIceCandidate(candidate)
+            } catch (iceError) {
+              console.warn('Failed to apply queued ICE candidate:', iceError)
+            }
+          }
+        }
+        const answer = await pc.value.createAnswer()
+        await pc.value.setLocalDescription(answer)
+        await CallService.answerCall(fromId, answer?.toJSON ? answer.toJSON() : answer)
+
+        await CallService.saveCallHistory({
+          user_id: fromId,
+          direction: 'incoming',
+          status: 'answered',
+          started_at: startedAt,
+        })
+
+        clearIncomingCallState()
+
+        if (selectedUser.value && sameUserId(selectedUser.value.id, fromId)) {
+          await loadCallHistoryForUser(fromId)
+        }
+      } catch (error) {
+        console.error('Incoming call handling failed:', error?.response?.data || error?.message || error)
+
+        await CallService.saveCallHistory({
+          user_id: fromId,
+          direction: 'incoming',
+          status: 'failed',
+          started_at: startedAt,
+          ended_at: new Date().toISOString(),
+        })
+
+        clearIncomingCallState()
+        callStartedAt.value = null
+        partnerId.value = null
+        teardownPeerConnection()
       }
     }
 
@@ -913,6 +1985,7 @@ export default {
           currentUserPhoto.value = getUserPhoto(response.user);
           loadSettings();
           loadKnownChatUsers();
+          await loadGroups();
         } else {
           console.warn("No user ID found in response.");
         }
@@ -926,8 +1999,17 @@ export default {
     };
 
     const userId = async (id) => {
+      if (isGroupConversation({ id, type: typeof id === 'string' && id.startsWith('group-') ? 'group' : undefined })) {
+        return null
+      }
+
+      const numericId = Number(id)
+      if (!Number.isFinite(numericId)) {
+        return null
+      }
+
       try {
-        const response = await allService.getUserProfile(id);
+        const response = await allService.getUserProfile(numericId);
         const profile = response?.user || response?.data || response;
         if (profile && profile.id) {
           return profile;
@@ -1013,31 +2095,171 @@ export default {
       return formatted ? `Last seen ${formatted}` : 'Offline'
     }
 
+    const parseGroupMembers = (members) => {
+      if (Array.isArray(members)) {
+        return members
+      }
+
+      if (typeof members === 'string' && members.trim()) {
+        try {
+          const parsed = JSON.parse(members)
+          return Array.isArray(parsed) ? parsed : []
+        } catch {
+          return []
+        }
+      }
+
+      return []
+    }
+
     const normalizeMessagePayload = (payload, fallback = {}) => {
       const source = typeof payload?.message === 'object' && payload.message !== null ? payload.message : payload;
+      const attachmentSource = source?.attachment || source?.file || source?.media || fallback?.attachment || null;
 
       return {
         id: source?.id ?? source?.message_id ?? fallback?.id ?? null,
         from_id: source?.from_id ?? source?.sender_id ?? source?.user_id ?? fallback?.from_id ?? null,
         to_id: source?.to_id ?? source?.receiver_id ?? fallback?.to_id ?? null,
+        group_id: source?.group_id ?? source?.groupId ?? fallback?.group_id ?? null,
+        group_name: source?.group_name ?? source?.groupName ?? fallback?.group_name ?? '',
+        group_members: parseGroupMembers(source?.group_members ?? source?.members ?? fallback?.group_members ?? fallback?.members),
+        conversation_type: source?.conversation_type ?? source?.conversationType ?? fallback?.conversation_type ?? '',
+        sender_name: source?.sender_name ?? source?.from_name ?? source?.from_user_name ?? fallback?.sender_name ?? '',
+        receiver_name: source?.receiver_name ?? source?.to_name ?? source?.to_user_name ?? fallback?.receiver_name ?? '',
         body: source?.body ?? source?.message ?? source?.text ?? fallback?.body ?? '',
         created_at: source?.created_at ?? source?.date ?? fallback?.created_at ?? new Date().toISOString(),
+        attachment: normalizeAttachment(attachmentSource, fallback?.attachment || {}),
+        attachment_url: source?.attachment_url ?? source?.file_url ?? source?.media_url ?? fallback?.attachment_url ?? '',
+        attachment_name: source?.attachment_name ?? source?.file_name ?? source?.original_name ?? fallback?.attachment_name ?? '',
+        attachment_mime_type: source?.attachment_mime_type ?? source?.mime_type ?? fallback?.attachment_mime_type ?? '',
+        attachment_kind: source?.attachment_kind ?? fallback?.attachment_kind ?? '',
         _optimistic: Boolean(fallback?._optimistic),
       };
     };
 
+    const sendGroupMessage = async () => {
+      const group = groups.value.find((item) => sameUserId(item.id, selectedUser.value?.id))
+      if (!group) {
+        return
+      }
+
+      showEmojiPicker.value = false
+
+      const text = message.value.trim()
+      const attachment = selectedAttachment.value
+      const hasAttachment = Boolean(attachment?.file)
+
+      if (!text && !hasAttachment) {
+        message.value = ''
+        return
+      }
+
+      const optimisticAttachment = hasAttachment ? {
+        url: attachment.previewUrl || '',
+        name: attachment.name,
+        mimeType: attachment.mimeType,
+        kind: attachment.kind,
+        size: attachment.size,
+      } : null
+
+      const optimisticMessage = normalizeMessagePayload({
+        id: `tmp-${Date.now()}-${Math.random().toString(36).slice(2)}`,
+        from_id: currentUserId.value,
+        to_id: group.id,
+        group_id: group.id,
+        body: text,
+        created_at: new Date().toISOString(),
+        attachment: optimisticAttachment,
+      }, { _optimistic: true, attachment: optimisticAttachment })
+
+      chat.value.messages.push(optimisticMessage)
+      message.value = ''
+
+      try {
+        const memberIds = (group.members || [])
+          .map((member) => Number(member.id))
+          .filter((id) => !sameUserId(id, currentUserId.value))
+
+        const payloadFactory = (memberId) => {
+          if (hasAttachment) {
+            const formData = new FormData()
+            formData.append('user_id', memberId)
+            formData.append('message', text)
+            formData.append('body', text)
+            formData.append('group_id', group.id)
+            formData.append('group_name', group.name)
+            formData.append('conversation_type', 'group')
+            formData.append('attachment', attachment.file)
+            formData.append('attachment_name', attachment.name)
+            formData.append('attachment_mime_type', attachment.mimeType || '')
+            formData.append('attachment_kind', attachment.kind)
+            formData.append('attachment_size', String(attachment.size || 0))
+            return formData
+          }
+
+          return {
+            user_id: memberId,
+            message: text,
+            group_id: group.id,
+            group_name: group.name,
+            conversation_type: 'group',
+          }
+        }
+
+        await Promise.all(memberIds.map((memberId) => allService.sendMessages(payloadFactory(memberId))))
+
+        const finalMessage = {
+          ...optimisticMessage,
+          _optimistic: false,
+        }
+
+        const groupIndex = groups.value.findIndex((item) => sameUserId(item.id, group.id))
+        if (groupIndex !== -1) {
+          const nextMessages = [...(groups.value[groupIndex].messages || []), finalMessage]
+          groups.value[groupIndex] = {
+            ...groups.value[groupIndex],
+            messages: nextMessages,
+          }
+          persistGroups()
+        }
+
+        chat.value.messages = chat.value.messages.map((item) => item.id === optimisticMessage.id ? finalMessage : item)
+        clearSelectedAttachment()
+      } catch (error) {
+        console.error('Group send failed:', error?.response?.data || error?.message || error)
+        chat.value.messages = chat.value.messages.filter((item) => item.id !== optimisticMessage.id)
+        message.value = text
+      }
+    };
+
     const sendMessage = async () => {
-      if (!message.value || !selectedUser.value) {
+      if (!selectedUser.value) {
         return;
+      }
+
+      if (isGroupConversation(selectedUser.value)) {
+        await sendGroupMessage()
+        return
       }
 
       showEmojiPicker.value = false
 
       const text = message.value.trim();
-      if (!text) {
+      const attachment = selectedAttachment.value
+      const hasAttachment = Boolean(attachment?.file)
+
+      if (!text && !hasAttachment) {
         message.value = '';
         return;
       }
+
+      const optimisticAttachment = hasAttachment ? {
+        url: attachment.previewUrl || '',
+        name: attachment.name,
+        mimeType: attachment.mimeType,
+        kind: attachment.kind,
+        size: attachment.size,
+      } : null
 
       const optimisticMessage = normalizeMessagePayload({
         id: `tmp-${Date.now()}-${Math.random().toString(36).slice(2)}`,
@@ -1045,18 +2267,35 @@ export default {
         to_id: selectedUser.value.id,
         body: text,
         created_at: new Date().toISOString(),
-      }, { _optimistic: true });
+        attachment: optimisticAttachment,
+      }, { _optimistic: true, attachment: optimisticAttachment });
 
       chat.value.messages.push(optimisticMessage);
       message.value = '';
 
       try {
-        const response = await allService.sendMessages({
-          user_id: selectedUser.value.id,
-          message: text,
-        });
+        const payload = hasAttachment
+          ? (() => {
+              const formData = new FormData()
+              formData.append('user_id', selectedUser.value.id)
+              formData.append('message', text)
+              formData.append('body', text)
+              formData.append('attachment', attachment.file)
+              formData.append('attachment_name', attachment.name)
+              formData.append('attachment_mime_type', attachment.mimeType || '')
+              formData.append('attachment_kind', attachment.kind)
+              formData.append('attachment_size', String(attachment.size || 0))
+              return formData
+            })()
+          : {
+              user_id: selectedUser.value.id,
+              message: text,
+            }
+
+        const response = await allService.sendMessages(payload)
 
         rememberChattedUser(selectedUser.value.id)
+        clearSelectedAttachment()
 
         const serverMessage = normalizeMessagePayload(response?.message ?? response?.data ?? response, optimisticMessage);
 
@@ -1066,6 +2305,7 @@ export default {
             chat.value.messages.splice(optimisticIndex, 1, {
               ...optimisticMessage,
               ...serverMessage,
+              attachment: serverMessage.attachment || optimisticMessage.attachment,
               _optimistic: false,
             });
           }
@@ -1082,6 +2322,7 @@ export default {
       chat.value.messages = [];
       searchQuery.value = '';
       showEmojiPicker.value = false
+      clearSelectedAttachment()
       getMessage(user.id);
       loadCallHistoryForUser(user.id)
 
@@ -1265,7 +2506,7 @@ export default {
       }
 
       const direction = item.direction === 'incoming' ? 'Incoming' : 'Outgoing'
-      const status = (item.status || 'ended').toString().replace(/_/g, ' ')
+      const status = (item.status || 'ended').toString().replaceAll('_', ' ')
       const timeValue = item.started_at || item.ended_at
       const parsed = timeValue ? new Date(timeValue) : null
       const timeLabel = parsed && !Number.isNaN(parsed.getTime())
@@ -1282,7 +2523,25 @@ export default {
         ? ` (${Math.floor(durationSeconds / 60)}m ${durationSeconds % 60}s)`
         : ''
 
-      return `${direction} ${status}${timeLabel ? ` ${timeLabel}` : ''}${durationLabel}`
+      return direction + ' ' + status + (timeLabel ? ' ' + timeLabel : '') + durationLabel
+    }
+
+    const formatCallHistoryTitle = (item) => {
+      if (!item) {
+        return 'Call'
+      }
+
+      return `${formatCallDirectionLabel(item.direction)} - ${formatCallStatusLabel(item.status)}`
+    }
+
+    const formatCallHistorySubtitle = (item) => {
+      if (!item) {
+        return ''
+      }
+
+      const when = formatCallDetailDateTime(item.started_at || item.ended_at) || 'Time not available'
+      const duration = formatCallDuration(item.duration_seconds)
+      return `${when} - ${duration}`
     }
 
     const formatCallDetailDateTime = (value) => {
@@ -1315,6 +2574,59 @@ export default {
       return mins > 0 ? `${mins}m ${secs}s` : `${secs}s`
     }
 
+    const formatCallStatusLabel = (status) => {
+      const value = (status || 'ended').toString().replaceAll('_', ' ')
+      return value.charAt(0).toUpperCase() + value.slice(1)
+    }
+
+    const formatCallDirectionLabel = (direction) => {
+      return direction === 'incoming' ? 'Incoming call' : 'Outgoing call'
+    }
+
+    const callStatusBadgeClass = (status) => {
+      const normalized = (status || 'ended').toString().toLowerCase()
+
+      if (normalized === 'answered' || normalized === 'ended') {
+        return 'call-badge-success'
+      }
+
+      if (normalized === 'missed' || normalized === 'failed' || normalized === 'rejected') {
+        return 'call-badge-danger'
+      }
+
+      if (normalized === 'busy') {
+        return 'call-badge-warning'
+      }
+
+      return 'call-badge-neutral'
+    }
+
+    const callDirectionBadgeClass = (direction) => {
+      return direction === 'incoming' ? 'call-badge-incoming' : 'call-badge-outgoing'
+    }
+
+    const getCallPeerName = (item) => {
+      const peerId = item?.user_id || selectedUser.value?.id
+      const fallback = selectedUser.value?.name || ''
+      return resolveParticipantName(peerId, fallback)
+    }
+
+    const getCallSenderName = (item) => {
+      if ((item?.direction || 'outgoing') === 'incoming') {
+        return getCallPeerName(item)
+      }
+
+      return currentUserName.value || 'You'
+    }
+
+    const getCallReceiverName = (item) => {
+      if ((item?.direction || 'outgoing') === 'incoming') {
+        return currentUserName.value || 'You'
+      }
+
+      return getCallPeerName(item)
+    }
+
     const formatCallMeta = (meta) => {
       if (typeof meta === 'string') {
         return meta
@@ -1327,9 +2639,26 @@ export default {
       }
     }
 
-    const openCallHistoryDetails = (item) => {
-      activeCallHistoryItem.value = item || null
-      showCallHistoryDetails.value = Boolean(item)
+    const isCallHistoryItemActive = (item) => {
+      if (!item || !activeCallHistoryItem.value) {
+        return false
+      }
+
+      if (item.id && activeCallHistoryItem.value.id) {
+        return item.id === activeCallHistoryItem.value.id
+      }
+
+      return (
+        item.started_at === activeCallHistoryItem.value.started_at &&
+        item.ended_at === activeCallHistoryItem.value.ended_at &&
+        item.status === activeCallHistoryItem.value.status
+      )
+    }
+
+    const openCallHistoryDetails = (item = null) => {
+      const targetItem = item || selectedCallHistory.value?.[0] || null
+      activeCallHistoryItem.value = targetItem
+      showCallHistoryDetails.value = Boolean(targetItem)
     }
 
     const closeCallHistoryDetails = () => {
@@ -1359,12 +2688,178 @@ export default {
 
     const isCurrentUserMessage = (msg) => sameUserId(msg?.from_id, currentUserId.value);
 
+    const resolveParticipantName = (userId, fallback = '') => {
+      if (!userId) {
+        return fallback || 'Unknown User'
+      }
+
+      if (sameUserId(userId, currentUserId.value)) {
+        return currentUserName.value || 'You'
+      }
+
+      const matchedUser = userView.value.find((user) => sameUserId(user?.id, userId))
+      if (matchedUser?.name) {
+        return matchedUser.name
+      }
+
+      return fallback || `User #${userId}`
+    }
+
+    const getMessageSenderName = (msg) => {
+      if (!msg) {
+        return 'Unknown User'
+      }
+
+      if (msg.sender_name) {
+        return msg.sender_name
+      }
+
+      return resolveParticipantName(msg.from_id, isCurrentUserMessage(msg) ? 'You' : '')
+    }
+
+    const getMessageReceiverName = (msg) => {
+      if (!msg) {
+        return 'Unknown User'
+      }
+
+      if (msg.receiver_name) {
+        return msg.receiver_name
+      }
+
+      if (isGroupConversation(selectedUser.value)) {
+        return selectedUser.value?.name || 'Group'
+      }
+
+      return isCurrentUserMessage(msg)
+        ? resolveParticipantName(selectedUser.value?.id, selectedUser.value?.name || '')
+        : 'You'
+    }
+
+    const canDownloadAttachment = (attachment) => Boolean(attachment && ['image', 'video', 'document'].includes(attachment.kind) && attachment.url)
+
+    const getVisibleMessageBody = (msg) => {
+      const body = (msg?.body || '').toString().trim()
+      if (!body) {
+        return ''
+      }
+
+      const attachment = getMessageAttachment(msg)
+      if (!attachment) {
+        return body
+      }
+
+      const attachmentName = (attachment.name || '').toString().trim()
+      if (!attachmentName) {
+        return body
+      }
+
+      // Hide auto-filled body text when it is just the attachment filename.
+      return body === attachmentName ? '' : body
+    }
+
+    const shouldShowMessageBody = (msg) => {
+      // Attachment messages should render as preview/download only.
+      if (getMessageAttachment(msg)) {
+        return false
+      }
+
+      return Boolean(getVisibleMessageBody(msg))
+    }
+
+    const downloadAttachment = (attachment) => {
+      if (!canDownloadAttachment(attachment)) {
+        return
+      }
+
+      const link = document.createElement('a')
+      link.href = attachment.url
+      link.download = attachment.name || 'attachment'
+      link.rel = 'noopener'
+      document.body.appendChild(link)
+      link.click()
+      link.remove()
+    }
+
     const mapRealtimeMessage = (event) => {
       return normalizeMessagePayload(event);
     };
 
+    const areMessagesEqual = (first, second) => {
+      if (!first || !second) return false
+
+      if (first.id && second.id) {
+        return first.id === second.id
+      }
+
+      return (
+        sameUserId(first.from_id, second.from_id) &&
+        sameUserId(first.to_id, second.to_id) &&
+        sameUserId(first.group_id, second.group_id) &&
+        first.body === second.body &&
+        first.created_at === second.created_at
+      )
+    }
+
+    const mergeGroupMembers = (...memberGroups) => {
+      const merged = []
+
+      memberGroups.flat().forEach((member) => {
+        const normalized = normalizeGroupMember(member)
+        if (!normalized?.id) return
+
+        const existingIndex = merged.findIndex((item) => sameUserId(item.id, normalized.id))
+        if (existingIndex === -1) {
+          merged.push(normalized)
+        } else {
+          merged[existingIndex] = { ...merged[existingIndex], ...normalized }
+        }
+      })
+
+      return merged
+    }
+
+    const upsertGroupFromIncomingMessage = (incoming) => {
+      if (!incoming?.group_id) return null
+
+      const existingIndex = groups.value.findIndex((group) => sameUserId(group.id, incoming.group_id))
+      const existingGroup = existingIndex === -1 ? null : groups.value[existingIndex]
+      const nextGroup = {
+        id: incoming.group_id,
+        name: incoming.group_name || existingGroup?.name || `Group ${incoming.group_id}`,
+        type: 'group',
+        created_by: existingGroup?.created_by ?? incoming.from_id ?? null,
+        created_at: existingGroup?.created_at ?? incoming.created_at ?? new Date().toISOString(),
+        members: mergeGroupMembers(
+          existingGroup?.members || [],
+          incoming.group_members || [],
+          incoming.from_id ? [{ id: incoming.from_id, name: incoming.sender_name }] : [],
+          currentUserId.value ? [{ id: currentUserId.value, name: currentUserName.value }] : []
+        ),
+        messages: [...(existingGroup?.messages || [])],
+      }
+
+      if (!nextGroup.messages.some((message) => areMessagesEqual(message, incoming))) {
+        nextGroup.messages.push(incoming)
+      }
+
+      if (existingIndex === -1) {
+        groups.value.unshift(nextGroup)
+      } else {
+        groups.value[existingIndex] = { ...existingGroup, ...nextGroup }
+      }
+
+      persistGroups()
+
+      if (selectedUser.value && isGroupConversation(selectedUser.value) && sameUserId(selectedUser.value.id, nextGroup.id)) {
+        selectedUser.value = { ...selectedUser.value, ...nextGroup, type: 'group' }
+      }
+
+      return nextGroup
+    }
+
     const appendMessage = (incoming) => {
-      if (!incoming?.body) {
+      const incomingAttachment = getMessageAttachment(incoming)
+      if (!incoming?.body && !incomingAttachment) {
         return;
       }
 
@@ -1372,6 +2867,7 @@ export default {
         item._optimistic &&
         sameUserId(item.from_id, incoming.from_id) &&
         sameUserId(item.to_id, incoming.to_id) &&
+        sameUserId(item.group_id, incoming.group_id) &&
         item.body === incoming.body
       );
 
@@ -1388,6 +2884,7 @@ export default {
         return (
           sameUserId(item.from_id, incoming.from_id) &&
           sameUserId(item.to_id, incoming.to_id) &&
+          sameUserId(item.group_id, incoming.group_id) &&
           item.body === incoming.body &&
           item.created_at === incoming.created_at
         );
@@ -1413,6 +2910,21 @@ export default {
 
       const handleRealtimeEvent = (event) => {
         const incoming = mapRealtimeMessage(event);
+
+        if (isGroupConversation(incoming)) {
+          upsertGroupFromIncomingMessage(incoming)
+
+          const isCurrentGroupConversation =
+            selectedUser.value &&
+            isGroupConversation(selectedUser.value) &&
+            sameUserId(selectedUser.value.id, incoming.group_id)
+
+          if (isCurrentGroupConversation) {
+            appendMessage(incoming)
+          }
+
+          return
+        }
 
         const isCurrentConversation =
           selectedUser.value &&
@@ -1461,44 +2973,80 @@ export default {
       }
 
       echo.private(channelName)
-        .listen('.incoming.call', async (event) => {
-          const fromId = event?.fromId || event?.from_id
-          const offer = toRTCDescription(event?.offer || event?.sdp, 'offer')
-          if (!fromId || !offer || !pc.value) {
+        .listen('.call.answered', async (event) => {
+          const answer = toRTCDescription(event?.answer || event?.sdp || event?.data?.answer || event?.data?.sdp, 'answer')
+          if (!answer || !pc.value) {
             return
           }
 
-          partnerId.value = fromId
-          callStartedAt.value = new Date().toISOString()
-
           try {
-            await pc.value.setRemoteDescription(new RTCSessionDescription(offer))
-            const answer = await pc.value.createAnswer()
-            await pc.value.setLocalDescription(answer)
-            await CallService.answerCall(fromId, answer)
-            await CallService.saveCallHistory({
-              user_id: fromId,
-              direction: 'incoming',
-              status: 'answered',
-              started_at: callStartedAt.value,
-            })
+            await pc.value.setRemoteDescription(new RTCSessionDescription(answer))
+            showOutgoingCallModal.value = true
+            outgoingCall.value = {
+              toId: event?.fromId || event?.from_id || partnerId.value,
+              status: 'Connected',
+            }
 
-            if (selectedUser.value && sameUserId(selectedUser.value.id, fromId)) {
-              const items = await loadCallHistoryForUser(fromId)
-              if (items.length) {
-                openCallHistoryDetails(items[0])
+            if (pendingIceCandidates.value.length) {
+              for (const candidate of pendingIceCandidates.value.splice(0)) {
+                try {
+                  await pc.value.addIceCandidate(candidate)
+                } catch (iceError) {
+                  console.warn('Failed to apply queued ICE candidate:', iceError)
+                }
               }
             }
           } catch (error) {
-            console.error('Incoming call handling failed:', error?.response?.data || error?.message || error)
+            console.warn('Failed to apply answered call:', error)
+          }
+        })
+        .listen('.answer.call', async (event) => {
+          const answer = toRTCDescription(event?.answer || event?.sdp || event?.data?.answer || event?.data?.sdp, 'answer')
+          if (!answer || !pc.value) {
+            return
+          }
+
+          try {
+            await pc.value.setRemoteDescription(new RTCSessionDescription(answer))
+            showOutgoingCallModal.value = true
+            outgoingCall.value = {
+              toId: event?.fromId || event?.from_id || partnerId.value,
+              status: 'Connected',
+            }
+          } catch (error) {
+            console.warn('Failed to apply call answer:', error)
+          }
+        })
+        .listen('.incoming.call', async (event) => {
+          const fromId = event?.fromId || event?.from_id
+          const offer = toRTCDescription(event?.offer || event?.sdp, 'offer')
+          if (!fromId || !offer) {
+            return
+          }
+
+          if (incomingCall.value && !sameUserId(incomingCall.value.fromId, fromId)) {
             await CallService.saveCallHistory({
               user_id: fromId,
               direction: 'incoming',
-              status: 'failed',
-              started_at: callStartedAt.value,
+              status: 'busy',
+              started_at: new Date().toISOString(),
               ended_at: new Date().toISOString(),
             })
+            return
           }
+
+          incomingCall.value = {
+            fromId,
+            offer,
+            startedAt: new Date().toISOString(),
+          }
+          showIncomingCallModal.value = true
+          isCallActionPending.value = false
+          clearIncomingCallTimer()
+
+          incomingCallTimeoutId.value = setTimeout(() => {
+            rejectIncomingCall('missed')
+          }, 30000)
         })
         .listen('.ice.candidate', async (event) => {
           if (!event?.candidate || !pc.value) {
@@ -1506,6 +3054,11 @@ export default {
           }
 
           try {
+            if (!pc.value.remoteDescription) {
+              pendingIceCandidates.value.push(event.candidate)
+              return
+            }
+
             await pc.value.addIceCandidate(event.candidate)
           } catch (error) {
             console.warn('Failed to apply ICE candidate:', error)
@@ -1538,52 +3091,51 @@ export default {
             }
           }
 
-          callStartedAt.value = null
-          partnerId.value = null
+          clearCallSessionState()
+          teardownPeerConnection()
+          pendingIceCandidates.value = []
         })
         .error((err) => console.error('Echo call private error:', err))
     }
 
     const initWebRTC = async () => {
       try {
-        pc.value = new RTCPeerConnection({
-          iceServers: [{ urls: 'stun:stun.l.google.com:19302' }]
-        })
-
-        const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
-        stream.getTracks().forEach(track => pc.value.addTrack(track, stream))
-
-        pc.value.ontrack = (e) => {
-          if (remoteAudio.value) {
-            remoteAudio.value.srcObject = e.streams[0]
-          }
-        }
-
-        pc.value.onicecandidate = (e) => {
-          if (e.candidate && partnerId.value) {
-            CallService.sendIce(partnerId.value, e.candidate)
-          }
-        }
+        await ensurePeerConnection()
       } catch (error) {
         console.warn('WebRTC init skipped:', error)
       }
     }
 
-    onMounted(() => {
+    onMounted(async () => {
       window.addEventListener('resize', updateViewportMode);
       updateViewportMode();
-      loadCurrentWeather()
+
+      // Update DD/MM/YYYY in real-time.
+      dateTickIntervalId.value = setInterval(() => {
+        now.value = new Date()
+      }, 60000)
+
+      await refreshWeatherAndLocation()
+      // Refresh weather/location periodically so sidebar data stays current.
+      weatherRefreshIntervalId.value = setInterval(refreshWeatherAndLocation, 5 * 60 * 1000)
 
       const token = localStorage.getItem('token');
       if (!token) {
+        isInitialLoading.value = false
         router.push('/');
         return;
       }
 
-      fetchUserId()
-      fetchUserData('')
-      initWebRTC()
-      loadCallHistoryForUser(null)
+      try {
+        await fetchUserId()
+        await Promise.all([
+          fetchUserData(''),
+          initWebRTC(),
+          loadCallHistoryForUser(null),
+        ])
+      } finally {
+        isInitialLoading.value = false
+      }
     })
 
     watch(currentUserId, (id) => {
@@ -1627,9 +3179,22 @@ export default {
         clearTimeout(searchDebounceTimer.value);
       }
 
+      if (dateTickIntervalId.value) {
+        clearInterval(dateTickIntervalId.value)
+      }
+
+      if (weatherRefreshIntervalId.value) {
+        clearInterval(weatherRefreshIntervalId.value)
+      }
+
       if (profilePreviewUrl.value) {
         URL.revokeObjectURL(profilePreviewUrl.value)
       }
+
+      clearSelectedAttachment()
+      clearIncomingCallTimer()
+      teardownPeerConnection()
+      pendingIceCandidates.value = []
     });
 
     return {
@@ -1653,8 +3218,30 @@ export default {
       showSettings,
       showHeaderMenu,
       showUserDetails,
+      showGroupDetails,
+      activeGroupDetails,
       showCallHistoryDetails,
       activeCallHistoryItem,
+      showIncomingCallModal,
+      showOutgoingCallModal,
+      isInitialLoading,
+      showGroupManager,
+      showGroupSettings,
+      editingGroupForSettings,
+      showAddMemberForm,
+      newGroupMembers,
+      groupForm,
+      groupCandidateUsers,
+      availableUsersForGroup,
+      visibleGroups,
+      editingGroupId,
+      incomingCallDisplayName,
+      incomingCallerPhoto,
+      outgoingCallDisplayName,
+      outgoingCallStatusText,
+      isCallActionPending,
+      attachmentInput,
+      selectedAttachment,
       isUserDetailsLoading,
       userDetails,
       userDetailsError,
@@ -1680,23 +3267,60 @@ export default {
       searchUser,
       getMessage,
       selectUserprofile,
+      selectGroup,
       toggleEmojiPicker,
       appendEmoji,
       openCurrentUserDetails,
       closeUserDetails,
+      openGroupDetails,
+      closeGroupDetails,
+      openGroupChatFromDetails,
+      openGroupSettingsFromDetails,
       userId,
       startCall,
       endCurrentCall,
+      openGroupManager,
+      closeGroupManager,
+      openGroupSettings,
+      closeGroupSettings,
+      addMembersToGroup,
+      removeMemberFromGroup,
+      deleteGroup,
+      saveGroup,
+      formatGroupPreview,
       formatMessageDate,
       formatProfileDate,
       getUserPresenceText,
       selectedCallHistory,
       formatCallHistoryItem,
+      formatCallHistoryTitle,
+      formatCallHistorySubtitle,
       formatCallDetailDateTime,
       formatCallDuration,
+      formatCallStatusLabel,
+      formatCallDirectionLabel,
+      callStatusBadgeClass,
+      callDirectionBadgeClass,
+      getCallSenderName,
+      getCallReceiverName,
       formatCallMeta,
       openCallHistoryDetails,
       closeCallHistoryDetails,
+      isCallHistoryItemActive,
+      acceptIncomingCall,
+      rejectIncomingCall,
+      triggerAttachmentPicker,
+      handleAttachmentChange,
+      clearSelectedAttachment,
+      formatFileSize,
+      getMessageAttachment,
+      getVisibleMessageBody,
+      shouldShowMessageBody,
+      getMessageSenderName,
+      getMessageReceiverName,
+      canDownloadAttachment,
+      downloadAttachment,
+      isGroupConversation,
       partnerId,
       sameUserId
     };
@@ -1742,12 +3366,12 @@ html, body {
 
 /* User list item hover effect */
 .list-group-item:hover {
-  background-color: #f5f5f5 !important;
+  background-color: #e3f0ff !important;
 }
 
 /* Active user highlight */
 .list-group-item.active {
-  background-color: #e9ecef !important;
+  background-color: #cfe5ff !important;
 }
 
 
@@ -1768,10 +3392,29 @@ html, body {
   min-height: 100vh;
   height: 100dvh;
   width: 100vw;
-  background-color: #0b141a;
+  background-color: #eaf4ff;
   padding: 0;
   margin: 0;
   overflow: hidden;
+}
+
+.initial-loading-screen {
+  position: fixed;
+  inset: 0;
+  z-index: 13000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #eaf4ff;
+  color: #163d66;
+}
+
+.initial-loading-card {
+  width: min(360px, calc(100% - 32px));
+  background: #f4f9ff;
+  border: 1px solid #b9d8ff;
+  border-radius: 14px;
+  padding: 24px;
 }
 
 /* Keep the sidebar and chat pane on one row on desktop */
@@ -1781,7 +3424,7 @@ html, body {
   min-height: 100%;
   display: flex;
   flex-direction: row;
-  background-color: #222e35;
+  background-color: #d7ebff;
   flex-wrap: nowrap;
   overflow: hidden;
 }
@@ -1792,8 +3435,8 @@ html, body {
   flex: 0 0 30%;
   min-width: 350px;
   max-width: 450px;
-  background-color: #111b21;
-  border-right: 1px solid #2f3b43;
+  background-color: #eaf4ff;
+  border-right: 1px solid #b9d8ff;
 }
 
 .chat-main {
@@ -1801,7 +3444,7 @@ html, body {
   flex-direction: column;
   flex: 1;
   min-width: 0;
-  background-color: #0b141a;
+  background-color: #f4f9ff;
   background-image: url('https://user-images.githubusercontent.com/15075759/28719144-86dc0f70-73b1-11e7-911d-60d70fcded21.png');
   background-blend-mode: overlay;
 }
@@ -1819,12 +3462,28 @@ html, body {
   text-justify: inter-word;
 }
 
+
+.chat-attachment-download {
+  margin-top: 6px;
+  padding: 2px 8px;
+  font-size: 0.72rem;
+}
+
+.chat-attachment-image,
+.chat-attachment-video {
+  width: 200px;
+  height: 150px;
+  object-fit: cover;
+  display: block;
+  border-radius: 8px;
+}
+
 .emoji-picker {
   position: absolute;
   bottom: 46px;
   left: 0;
-  background: #1f2c33;
-  border: 1px solid #2f3b43;
+  background: #f4f9ff;
+  border: 1px solid #b9d8ff;
   border-radius: 10px;
   padding: 8px;
   display: grid;
@@ -1836,7 +3495,7 @@ html, body {
 .emoji-item {
   border: 0;
   background: transparent;
-  color: #e9edef;
+  color: #163d66;
   border-radius: 6px;
   line-height: 1;
   padding: 4px;
@@ -1844,43 +3503,112 @@ html, body {
 }
 
 .emoji-item:hover {
-  background: #2f3b43;
+  background: #d7ebff;
 }
 
-.call-history-strip {
-  background: #1b2730;
-  color: #e9edef;
-  padding: 8px 12px;
+.sidebar-user-list {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+.sidebar-user-list::-webkit-scrollbar {
+  width: 0;
+  height: 0;
 }
 
 .call-history-list {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
+  display: grid;
+  gap: 8px;
+  max-height: 220px;
+  overflow-y: auto;
 }
 
 .call-history-item {
-  font-size: 0.75rem;
-  background: #263843;
-  border: 0;
-  color: #e9edef;
+  font-size: 0.78rem;
+  background: #edf6ff;
+  border: 1px solid #b9d8ff;
+  color: #163d66;
   cursor: pointer;
-  border-radius: 999px;
-  padding: 2px 8px;
+  border-radius: 10px;
+  padding: 8px 10px;
+  text-align: left;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
 }
 
 .call-history-item:hover {
-  background: #32505f;
+  background: #dceeff;
+  border-color: #8fbced;
+}
+
+.call-history-item.active {
+  background: #cfe5ff;
+  color: #163d66;
+  border-color: #60a5fa;
+}
+
+.call-history-item-title {
+  font-weight: 600;
+  line-height: 1.25;
+}
+
+.call-history-item-subtitle {
+  font-size: 0.72rem;
+  color: #4f78a8;
 }
 
 .call-history-meta {
   white-space: pre-wrap;
   word-break: break-word;
-  background: #0f1b21;
-  color: #c8d4db;
+  background: #eaf4ff;
+  color: #355b87;
   border-radius: 8px;
   padding: 8px;
   font-size: 0.75rem;
+}
+
+.call-details-summary {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.call-badge {
+  display: inline-flex;
+  align-items: center;
+  border-radius: 999px;
+  padding: 3px 10px;
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+
+
+.details-note {
+  margin: -4px 0 12px;
+  color: #4f78a8;
+  font-size: 0.82rem;
+}
+
+.details-item {
+  padding: 8px 10px;
+  border: 1px solid #b9d8ff;
+  border-radius: 10px;
+  background: #edf6ff;
+}
+
+.details-label {
+  color: #4f78a8;
+  display: block;
+  margin-bottom: 3px;
+  font-size: 0.74rem;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.details-value {
+  color: #163d66;
+  font-size: 0.92rem;
 }
 
 
@@ -1892,7 +3620,7 @@ html, body {
 .settings-overlay {
   position: fixed;
   inset: 0;
-  background: rgba(0, 0, 0, 0.55);
+  background: rgba(26, 62, 104, 0.35);
   z-index: 12000;
   display: flex;
   align-items: center;
@@ -1905,15 +3633,15 @@ html, body {
   top: 56px;
   right: 8px;
   min-width: 160px;
-  background: #233138;
-  border: 1px solid #2f3b43;
+  background: #edf6ff;
+  border: 1px solid #b9d8ff;
   border-radius: 8px;
   padding: 6px 0;
   z-index: 50;
 }
 
 .header-menu .dropdown-item {
-  color: #e9edef;
+  color: #163d66;
   background: transparent;
   border: 0;
   width: 100%;
@@ -1924,16 +3652,88 @@ html, body {
 }
 
 .header-menu .dropdown-item:hover {
-  background: #2f3b43;
+  background: #d7ebff;
+}
+
+.dropdown-item-disabled {
+  cursor: not-allowed;
+  opacity: 0.7;
+}
+
+.dropdown-item-disabled small {
+  color: #6b88ae;
+}
+
+.header-menu .dropdown-divider {
+  border-color: #b9d8ff;
 }
 
 .settings-card {
   width: min(420px, 100%);
-  background: #1f2c33;
-  color: #e9edef;
-  border: 1px solid #2f3b43;
+  background: #f4f9ff;
+  color: #163d66;
+  border: 1px solid #b9d8ff;
   border-radius: 12px;
   padding: 16px;
+}
+
+.powered-by-text {
+  color: #4f78a8;
+  font-size: 0.74rem;
+  letter-spacing: 0.02em;
+}
+
+.incoming-call-card {
+  width: min(340px, 100%);
+}
+
+.group-card {
+  width: min(520px, 100%);
+}
+
+.group-member-picker {
+  display: grid;
+  gap: 8px;
+  max-height: 320px;
+  overflow: auto;
+}
+
+.group-member-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  border: 1px solid #b9d8ff;
+  border-radius: 10px;
+  background: #edf6ff;
+}
+
+
+.group-members-list {
+  max-height: 320px;
+  overflow-y: auto;
+}
+
+.group-member-item {
+  background: #edf6ff !important;
+  border: 1px solid #b9d8ff;
+}
+
+.group-member-item:hover {
+  background: #dceeff !important;
+}
+
+
+.incoming-call-icon {
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  background: #d7ebff;
+  color: #163d66;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.25rem;
 }
 
 .settings-avatar,
@@ -1946,8 +3746,8 @@ html, body {
 }
 
 .settings-avatar-placeholder {
-  background: #2f3b43;
-  color: #e9edef;
+  background: #d7ebff;
+  color: #163d66;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -1976,7 +3776,7 @@ html, body {
     padding: 0 !important;
     border-radius: 0 !important;
     z-index: 9999;
-    background-color: #fff;
+    background-color: #eaf4ff;
     overflow: hidden;
     right: 0;
     bottom: 0;

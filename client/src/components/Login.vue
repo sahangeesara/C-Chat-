@@ -1,7 +1,7 @@
 <template>
   <div class="login-container">
     <div class="login-card">
-      <div class="logo">CH-CHAT</div>
+      <div class="logo">Chatrio</div>
 
       <h1 class="title">Login</h1>
 
@@ -45,7 +45,7 @@
           </span>
         </button>
 
-       <router-link to="/signup" class="btn btn-outline-primary">Sign up</router-link>
+       <router-link to="/signup" class="btn signup-btn">Sign up</router-link>
 
         <div class="forgot-password">
           <router-link to="/request-password-reset">Forgot your password?</router-link>
@@ -124,17 +124,18 @@ export default {
   justify-content: center;
   align-items: center;
   min-height: 100vh;
-  background-color: #3b82f6;
+  background: linear-gradient(135deg, #eaf4ff 0%, #d7ebff 55%, #c5e2ff 100%);
   font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
 }
 
 .login-card {
-  background: white;
+  background: #f4f9ff;
   border-radius: 30px;
   padding: 2rem;
   width: 100%;
   max-width: 360px;
-  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.1);
+  border: 1px solid #b9d8ff;
+  box-shadow: 0 12px 32px rgba(59, 130, 246, 0.2);
   position: relative;
   text-align: center;
 }
@@ -144,8 +145,8 @@ export default {
   top: -40px;
   left: 50%;
   transform: translateX(-50%);
-  background-color: #2563eb;
-  color: white;
+  background-color: #60a5fa;
+  color: #ffffff;
   width: 130px;
   height: 100px;
   border-radius: 75%;
@@ -160,7 +161,7 @@ export default {
 .title {
   margin-top: 2rem;
   margin-bottom: 1.5rem;
-  color: #333;
+  color: #133c6d;
   font-size: 1.5rem;
   font-weight: 600;
 }
@@ -178,15 +179,22 @@ export default {
 .input-field {
   width: 100%;
   padding: 12px 16px;
-  border: 1px solid #e5e7eb;
+  border: 1px solid #bfdcff;
+  background-color: #ffffff;
+  color: #163d66;
   border-radius: 8px;
   font-size: 1rem;
   transition: border-color 0.3s;
 }
 
+.input-field::placeholder {
+  color: #6f92b9;
+}
+
 .input-field:focus {
   outline: none;
-  border-color: #3b82f6;
+  border-color: #60a5fa;
+  box-shadow: 0 0 0 0.2rem rgba(96, 165, 250, 0.2);
 }
 
 .password-toggle {
@@ -196,12 +204,12 @@ export default {
   transform: translateY(-50%);
   cursor: pointer;
   user-select: none;
-  color: #6b7280;
+  color: #5e84ad;
 }
 
 .submit-btn {
-  background-color: #2563eb;
-  color: white;
+  background-color: #60a5fa;
+  color: #ffffff;
   border: none;
   padding: 12px;
   border-radius: 8px;
@@ -214,12 +222,24 @@ export default {
 }
 
 .submit-btn:hover:not(:disabled) {
-  background-color: #1d4ed8;
+  background-color: #3b82f6;
 }
 
 .submit-btn:disabled {
   opacity: 0.7;
   cursor: not-allowed;
+}
+
+.signup-btn {
+  border: 1px solid #b9d8ff;
+  color: #1f4f82;
+  background-color: #eaf4ff;
+}
+
+.signup-btn:hover {
+  border-color: #60a5fa;
+  color: #0f3c70;
+  background-color: #d7ebff;
 }
 
 .forgot-password {
@@ -237,8 +257,9 @@ export default {
 }
 
 .error-message {
-  color: white;
-  background-color: #ef4444;
+  color: #163d66;
+  background-color: #d7ebff;
+  border: 1px solid #b9d8ff;
   padding: 8px 12px;
   border-radius: 4px;
   font-size: 0.875rem;

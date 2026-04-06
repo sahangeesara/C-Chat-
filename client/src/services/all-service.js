@@ -157,6 +157,16 @@ export default class AllServiceService {
     }
 
     async sendMessages(value) {
+        if (typeof FormData !== 'undefined' && value instanceof FormData) {
+            try {
+                const response = await this.http.post('/send', value);
+                return response.data;
+            } catch (error) {
+                console.error('Error sending message:', error.response?.data || error.message);
+                throw error;
+            }
+        }
+
         const toId = value?.user_id ?? value?.to_id ?? value?.receiver_id ?? null;
         const text = (value?.message ?? value?.body ?? value?.text ?? '').toString().trim();
 
@@ -215,6 +225,96 @@ export default class AllServiceService {
             return response.data;
         } catch (error) {
             console.error('Error updating profile:', error.response?.data || error.message);
+            throw error;
+        }
+    }
+
+    async getGroups() {
+        try {
+            const response = await this.http.get('/groups');
+            return response.data;
+        } catch (error) {
+            console.error('Error fetching groups:', error.response?.data || error.message);
+            throw error;
+        }
+    }
+
+    async getGroup(groupId) {
+        try {
+            const response = await this.http.get(`/groups/${groupId}`);
+            return response.data;
+        } catch (error) {
+            console.error('Error fetching group details:', error.response?.data || error.message);
+            throw error;
+        }
+    }
+
+    async createGroup(payload) {
+        try {
+            const response = await this.http.post('/groups', payload);
+            return response.data;
+        } catch (error) {
+            console.error('Error creating group:', error.response?.data || error.message);
+            throw error;
+        }
+    }
+
+    async updateGroup(groupId, payload) {
+        try {
+            const response = await this.http.put(`/groups/${groupId}`, payload);
+            return response.data;
+        } catch (error) {
+            console.error('Error updating group:', error.response?.data || error.message);
+            throw error;
+        }
+    }
+
+    async addGroupMembers(groupId, userIds) {
+        try {
+            const response = await this.http.post(`/groups/${groupId}/members`, { user_ids: userIds });
+            return response.data;
+        } catch (error) {
+            console.error('Error adding group members:', error.response?.data || error.message);
+            throw error;
+        }
+    }
+
+    async updateGroupMemberRole(groupId, userId, role) {
+        try {
+            const response = await this.http.patch(`/groups/${groupId}/members/${userId}/role`, { role });
+            return response.data;
+        } catch (error) {
+            console.error('Error updating group role:', error.response?.data || error.message);
+            throw error;
+        }
+    }
+
+    async removeGroupMember(groupId, userId) {
+        try {
+            const response = await this.http.delete(`/groups/${groupId}/members/${userId}`);
+            return response.data;
+        } catch (error) {
+            console.error('Error removing group member:', error.response?.data || error.message);
+            throw error;
+        }
+    }
+
+    async leaveGroup(groupId) {
+        try {
+            const response = await this.http.post(`/groups/${groupId}/leave`);
+            return response.data;
+        } catch (error) {
+            console.error('Error leaving group:', error.response?.data || error.message);
+            throw error;
+        }
+    }
+
+    async deleteGroup(groupId) {
+        try {
+            const response = await this.http.delete(`/groups/${groupId}`);
+            return response.data;
+        } catch (error) {
+            console.error('Error deleting group:', error.response?.data || error.message);
             throw error;
         }
     }

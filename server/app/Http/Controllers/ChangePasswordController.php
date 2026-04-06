@@ -4,7 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Http\Requests\ChangePasswordRequest;
 use App\Models\User;
-use Illuminate\Http\Request;
+use Carbon\Carbon;
 use Illuminate\Support\Facades\DB;
 use Symfony\Component\HttpFoundation\Response as ResponseAlias;
 
@@ -13,17 +13,46 @@ class ChangePasswordController extends Controller
 {
     public function process(ChangePasswordRequest $request)
     {
-        return $this->getPasswordResetTableRow($request)->count()>0 ? $this->changePassword($request) : $this->tokenNotFoundResponse();
+        $tokenRow = $this->getPasswordResetTableRow($request);
+
+        if (!$tokenRow) {
+            return $this->tokenNotFoundResponse();
+        }
+
+        if ($this->isExpired($tokenRow->created_at)) {
+            DB::table('password_reset_tokens')
+                ->where('email', $request->email)
+                ->delete();
+
+            return response()->json([
+                'error' => 'Reset token expired. Please request a new link.',
+            ], ResponseAlias::HTTP_UNPROCESSABLE_ENTITY);
+        }
+
+        return $this->changePassword($request);
     }
 
-    private function getPasswordResetTableRow($request): \Illuminate\Database\Query\Builder
+    private function getPasswordResetTableRow($request): ?object
     {
-        return DB::table('password_reset_tokens')->where(['email'=>$request->email,'token'=>$request->resetToken]);
+        return DB::table('password_reset_tokens')
+            ->where(['email' => $request->email, 'token' => $request->resetToken])
+            ->first();
+    }
+
+    private function isExpired($createdAt): bool
+    {
+        if (!$createdAt) {
+            return true;
+        }
+
+        $expireMinutes = (int) config('auth.passwords.users.expire', 60);
+
+        return Carbon::parse($createdAt)->addMinutes($expireMinutes)->isPast();
     }
 
     private function tokenNotFoundResponse(): \Illuminate\Http\JsonResponse
     {
-        return response()->json(['error' =>'Token or Email is incorrect'],ResponseAlias:: HTTP_UNPROCESSABLE_ENTITY);
+        return response()->json(['error' => 'Token or Email is incorrect'], ResponseAlias::HTTP_UNPROCESSABLE_ENTITY);
     }
 
     private function changePassword($request)
@@ -48,7 +77,7 @@ class ChangePasswordController extends Controller
 
         return response()->json(
             ['data' => 'Password successfully changed'],
-            ResponseAlias::HTTP_CREATED
+            ResponseAlias::HTTP_OK
         );
     }
 }
