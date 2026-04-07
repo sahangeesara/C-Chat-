@@ -8,36 +8,40 @@ use Illuminate\Foundation\Events\Dispatchable;
 use Illuminate\Broadcasting\InteractsWithSockets;
 use Illuminate\Queue\SerializesModels;
 
-class ChatEvent implements ShouldBroadcastNow
+class GroupChatEvent implements ShouldBroadcastNow
 {
     use Dispatchable, InteractsWithSockets, SerializesModels;
 
+    public $group_id;
     public $from_id;
-    public $to_id;
     public $message;
     public $attachment;
     public $message_id;
     public $created_at;
 
-    public function __construct($from, $to, $message, $attachment = '', $messageId = null)
-    {
-        $this->from_id = $from;
-        $this->to_id = $to;
+    public function __construct(
+        int $groupId,
+        int $fromId,
+        string $message,
+        string $attachment = '',
+        ?int $messageId = null
+    ) {
+        $this->group_id = $groupId;
+        $this->from_id = $fromId;
         $this->message = $message;
         $this->attachment = $attachment;
         $this->message_id = $messageId;
         $this->created_at = now();
     }
 
-    public function broadcastOn()
+    public function broadcastOn(): array
     {
         return [
-            new PrivateChannel('chat.' . $this->from_id),
-            new PrivateChannel('chat.' . $this->to_id),
+            new PrivateChannel('group.' . $this->group_id),
         ];
     }
 
-    public function broadcastAs()
+    public function broadcastAs(): string
     {
         return 'chat.message';
     }
@@ -45,9 +49,9 @@ class ChatEvent implements ShouldBroadcastNow
     public function broadcastWith(): array
     {
         return [
+            'id' => $this->message_id,
+            'group_id' => $this->group_id,
             'from_id' => $this->from_id,
-            'to_id' => $this->to_id,
-            'message' => $this->message,
             'body' => $this->message,
             'attachment' => $this->attachment,
             'message_id' => $this->message_id,

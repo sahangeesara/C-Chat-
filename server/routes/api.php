@@ -49,6 +49,7 @@ Route::middleware(['auth:api', 'last.seen'])->group(function () {
 
     // Chat routes
     Route::get('chat/{id}', [ChatController::class,'chat']);
+    Route::get('chat/group/{group}', [ChatController::class, 'groupMessages']);
     Route::post('send', [ChatController::class,'send']);
 
 //    // Test broadcast
@@ -78,10 +79,20 @@ Route::middleware(['auth:api', 'last.seen'])->group(function () {
     Route::post('groups', [GroupController::class, 'store']);
     Route::get('groups/{group}', [GroupController::class, 'show']);
     Route::patch('groups/{group}', [GroupController::class, 'update']);
+    Route::put('groups/{group}', [GroupController::class, 'update']);
+    Route::get('groups/{group}/messages', [ChatController::class, 'groupMessages']);
+    Route::post('groups/{group}/messages', [ChatController::class, 'sendToGroup']);
+    Route::get('group/{group}/messages', [ChatController::class, 'groupMessages']);
+    Route::post('group/{group}/messages', [ChatController::class, 'sendToGroup']);
+    Route::get('group/messages/{group}', [ChatController::class, 'groupMessages']);
+    // Backward compatibility for clients that use prefixed group IDs.
+    Route::delete('groups/group-{group}', [GroupController::class, 'destroy'])->whereNumber('group');
     Route::post('groups/{group}/members', [GroupController::class, 'addMembers']);
     Route::patch('groups/{group}/members/{user}/role', [GroupController::class, 'updateMemberRole']);
     Route::delete('groups/{group}/members/{user}', [GroupController::class, 'removeMember']);
     Route::post('groups/{group}/leave', [GroupController::class, 'leave']);
+    // Backward compatibility for clients that cannot send DELETE.
+    Route::post('groups/{group}/delete', [GroupController::class, 'destroy']);
     Route::delete('groups/{group}', [GroupController::class, 'destroy']);
 
 });

@@ -1,7 +1,7 @@
 <template>
   <div v-if="isInitialLoading" class="initial-loading-screen">
     <div class="initial-loading-card text-center">
-      <h2 class="mb-2">Chatrio</h2>
+      <h2 class="mb-2">Skytalk</h2>
       <p class="text-muted mb-3">Loading your chats...</p>
       <output class="spinner-border text-primary" aria-label="Loading"></output>
       <div class="powered-by-text mt-3">Powered by CodeHelio</div>
@@ -232,31 +232,56 @@
                 style="font-size: 0.9rem;"
             >
               <template v-if="getMessageAttachment(msg)">
-                <img
-                  v-if="getMessageAttachment(msg).kind === 'image'"
-                  :src="getMessageAttachment(msg).url"
-                  class="chat-attachment-image mb-2"
-                  alt="Attachment"
-                >
-                <video
-                  v-else-if="getMessageAttachment(msg).kind === 'video'"
-                  :src="getMessageAttachment(msg).url"
-                  class="chat-attachment-video mb-2"
-                  controls
-                  preload="metadata"
-                  :aria-label="getMessageAttachment(msg).name"
-                >
-                  <track kind="subtitles" label="Subtitles" srclang="en" :src="getMessageAttachment(msg).captionsUrl || ''" default>
-                  <track kind="descriptions" label="Descriptions" srclang="en" :src="getMessageAttachment(msg).descriptionsUrl || getMessageAttachment(msg).captionsUrl || ''">
-                </video>
-                <button
-                  v-if="canDownloadAttachment(getMessageAttachment(msg))"
-                  type="button"
-                  class="btn btn-sm btn-outline-light chat-attachment-download"
-                  @click="downloadAttachment(getMessageAttachment(msg))"
-                >
-                  <i class="bi bi-download me-1"></i>Download
-                </button>
+                <div class="attachment-container mb-2">
+                  <img
+                    v-if="getMessageAttachment(msg).kind === 'image'"
+                    :src="getMessageAttachment(msg).url"
+                    class="chat-attachment-image mb-2"
+                    alt="Attachment"
+                  >
+                  <video
+                    v-else-if="getMessageAttachment(msg).kind === 'video'"
+                    :src="getMessageAttachment(msg).url"
+                    class="chat-attachment-video mb-2"
+                    controls
+                    preload="metadata"
+                    :aria-label="getMessageAttachment(msg).name"
+                  >
+                    <track kind="subtitles" label="Subtitles" srclang="en" :src="getMessageAttachment(msg).captionsUrl || ''" default>
+                    <track kind="descriptions" label="Descriptions" srclang="en" :src="getMessageAttachment(msg).descriptionsUrl || getMessageAttachment(msg).captionsUrl || ''">
+                  </video>
+                  <audio
+                    v-else-if="getMessageAttachment(msg).kind === 'audio'"
+                    :src="getMessageAttachment(msg).url"
+                    controls
+                    preload="metadata"
+                    class="w-100 mb-2"
+                  ></audio>
+                  <div v-else class="document-preview mb-2 p-2 border rounded" style="background-color: rgba(255,255,255,0.1);">
+                    <i class="bi bi-file-earmark me-2"></i>
+                    <span class="document-name">{{ getMessageAttachment(msg).name || 'Document' }}</span>
+                  </div>
+
+                  <!-- Action buttons for all attachment types -->
+                  <div class="attachment-actions d-flex gap-2">
+                    <button
+                      type="button"
+                      class="btn btn-sm btn-outline-light"
+                      @click="viewAttachment(getMessageAttachment(msg))"
+                      title="View file"
+                    >
+                      <i class="bi bi-eye me-1"></i>View
+                    </button>
+                    <button
+                      type="button"
+                      class="btn btn-sm btn-outline-light"
+                      @click="downloadAttachment(getMessageAttachment(msg))"
+                      title="Download file"
+                    >
+                      <i class="bi bi-download me-1"></i>Download
+                    </button>
+                  </div>
+                </div>
               </template>
               <div v-if="shouldShowMessageBody(msg)" style="word-break: break-word;">{{ getVisibleMessageBody(msg) }}</div>
               <div class="text-end" style="font-size: 0.65rem; color: #163d66; margin-top: 4px;">
@@ -320,7 +345,7 @@
             ref="attachmentInput"
             type="file"
             class="d-none"
-            accept="image/*,video/*,.pdf,.doc,.docx,.txt,.rtf,.xls,.xlsx,.ppt,.pptx,.csv,.zip,.rar"
+            accept="image/*,video/*,audio/*,.pdf,.doc,.docx,.txt,.rtf,.xls,.xlsx,.ppt,.pptx,.csv,.zip,.rar"
             @change="handleAttachmentChange"
           >
         </div>
@@ -346,6 +371,26 @@
           <div class="mb-2">
             <label class="form-label mb-1" for="settings-display-name">Display Name</label>
             <input id="settings-display-name" type="text" class="form-control" v-model="profileForm.name" placeholder="Your name" />
+          </div>
+
+          <div class="mb-2">
+            <label class="form-label mb-1" for="settings-phone">Phone</label>
+            <input id="settings-phone" type="text" class="form-control" v-model="profileForm.phone" placeholder="Phone number" />
+          </div>
+
+          <div class="mb-2">
+            <label class="form-label mb-1" for="settings-address">Address</label>
+            <input id="settings-address" type="text" class="form-control" v-model="profileForm.address" placeholder="Address" />
+          </div>
+
+          <div class="mb-2">
+            <label class="form-label mb-1" for="settings-city">City</label>
+            <input id="settings-city" type="text" class="form-control" v-model="profileForm.city" placeholder="City" />
+          </div>
+
+          <div class="mb-2">
+            <label class="form-label mb-1" for="settings-country">Country</label>
+            <input id="settings-country" type="text" class="form-control" v-model="profileForm.country" placeholder="Country" />
           </div>
 
           <div class="mb-2">
@@ -593,6 +638,20 @@
     </div>
   </div>
 
+  <div v-if="showImagePreview" class="image-preview-overlay" @click.self="closeImagePreview">
+    <div class="image-preview-toolbar">
+      <button type="button" class="btn btn-sm btn-light" @click="closeImagePreview">
+        <i class="bi bi-arrow-left me-1"></i>Back
+      </button>
+      <button type="button" class="btn btn-sm btn-outline-light" @click="closeImagePreview">
+        <i class="bi bi-x-lg me-1"></i>Close
+      </button>
+    </div>
+    <div class="image-preview-stage">
+      <img :src="imagePreviewUrl" :alt="imagePreviewName || 'Image preview'" class="image-preview-full">
+    </div>
+  </div>
+
   <div v-if="showGroupManager" class="settings-overlay" @click.self="closeGroupManager">
     <div class="settings-card group-card">
       <div class="d-flex justify-content-between align-items-center mb-3">
@@ -617,9 +676,15 @@
         </div>
       </div>
 
+      <div v-if="groupFormError" class="alert alert-danger py-2 px-3 mb-2" role="alert">
+        {{ groupFormError }}
+      </div>
+
       <div class="d-flex gap-2 justify-content-end">
         <button type="button" class="btn btn-outline-secondary" @click="closeGroupManager">Cancel</button>
-        <button type="button" class="btn btn-primary" @click="saveGroup">Save Group</button>
+        <button type="button" class="btn btn-primary" :disabled="groupFormSubmitting" @click="saveGroup">
+          {{ groupFormSubmitting ? 'Saving...' : 'Save Group' }}
+        </button>
       </div>
     </div>
   </div>
@@ -750,12 +815,17 @@ export default {
     const activeCallHistoryItem = ref(null)
     const emojiList = ['😀', '😂', '😍', '😎', '😊', '😁', '🤔', '😢', '👍', '🙏', '🔥', '🎉', '❤️', '💬', '✅', '🙌']
     const currentUserPhoto = ref('')
+    const currentUserProfile = ref(null)
     const defaultSettings = {
       accentColor: '#60a5fa'
     }
     const settings = ref({ ...defaultSettings })
     const profileForm = ref({
       name: '',
+      phone: '',
+      address: '',
+      city: '',
+      country: '',
       image: null,
       accentColor: defaultSettings.accentColor
     })
@@ -780,7 +850,11 @@ export default {
     const incomingCallTimeoutId = ref(null)
     const attachmentInput = ref(null)
     const selectedAttachment = ref(null)
+    const showImagePreview = ref(false)
+    const imagePreviewUrl = ref('')
+    const imagePreviewName = ref('')
     const activeChannelNames = ref([])
+    const activeGroupChannelNames = ref([])
     const knownChatUserIds = ref([])
     const latestProfileRequestId = ref(0)
     const pendingIceCandidates = ref([])
@@ -794,8 +868,17 @@ export default {
 
     const getAttachmentKind = (file) => {
       if (!file) return 'file'
-      if (file.type?.startsWith('image/')) return 'image'
-      if (file.type?.startsWith('video/')) return 'video'
+
+      const type = (file.type || '').toString().toLowerCase()
+      if (type.startsWith('image/')) return 'image'
+      if (type.startsWith('video/')) return 'video'
+      if (type.startsWith('audio/')) return 'audio'
+
+      const hint = `${file.name || ''} ${file.url || ''}`.toLowerCase()
+      if (/\.(png|jpe?g|gif|webp|bmp|svg)(\?|#|$)/.test(hint)) return 'image'
+      if (/\.(mp4|webm|ogg|mov|mkv)(\?|#|$)/.test(hint)) return 'video'
+      if (/\.(mp3|wav|m4a|aac|flac|oga|opus)(\?|#|$)/.test(hint)) return 'audio'
+
       return 'document'
     }
 
@@ -818,6 +901,21 @@ export default {
     const normalizeAttachment = (attachment, fallback = {}) => {
       if (!attachment) return null
 
+      if (typeof attachment === 'string') {
+        const directUrl = attachment.trim()
+        if (!directUrl) return null
+
+        const inferredName = directUrl.split('/').pop()?.split('?')[0] || ''
+        const inferredKind = getAttachmentKind({ url: directUrl, name: inferredName })
+        return {
+          url: directUrl,
+          name: fallback?.name || inferredName,
+          mimeType: fallback?.mimeType || '',
+          kind: fallback?.kind || inferredKind,
+          size: Number(fallback?.size || 0),
+        }
+      }
+
       const url = attachment.url || attachment.preview_url || attachment.attachment_url || attachment.file_url || attachment.media_url || attachment.path || attachment.file_path || attachment.attachment_path || fallback?.url || ''
       const name = attachment.name || attachment.original_name || attachment.file_name || attachment.filename || fallback?.name || ''
       const mimeType = attachment.mime_type || attachment.type || attachment.content_type || fallback?.mimeType || ''
@@ -830,9 +928,37 @@ export default {
         return null
       }
 
-      const kind = rawKind || getAttachmentKind({ type: mimeType })
+      const kind = rawKind || getAttachmentKind({ type: mimeType, name, url })
 
       return { url, name, mimeType, kind, size }
+    }
+
+    const getUserPhoto = (user) => {
+      if (!user) {
+        return ''
+      }
+
+      if (user.profile_photo_url) {
+        return user.profile_photo_url
+      }
+
+      const rawPath = user.profile_photo_path || user.avatar || user.image || ''
+      if (!rawPath) {
+        return ''
+      }
+
+      if (rawPath.startsWith('http://') || rawPath.startsWith('https://')) {
+        return rawPath
+      }
+
+      const baseUrl = (process.env.VUE_APP_API_BASE_URL || 'http://127.0.0.1:8000').replace(/\/$/, '')
+      const normalizedPath = rawPath.replace(/^\/+/, '')
+
+      if (normalizedPath.startsWith('storage/')) {
+        return `${baseUrl}/${normalizedPath}`
+      }
+
+      return `${baseUrl}/storage/${normalizedPath}`
     }
 
     const getMessageAttachment = (msg) => {
@@ -981,6 +1107,86 @@ export default {
       return `${day}/${month}/${year}`;
     });
 
+    const showSidebarPane = computed(() => !isMobileView.value || activeMobilePane.value === 'list')
+    const showChatPane = computed(() => !isMobileView.value || activeMobilePane.value === 'chat')
+    const isDetailsOpen = computed(() =>
+      showUserDetails.value || showGroupDetails.value || showCallHistoryDetails.value
+    )
+
+    const incomingCallDisplayName = computed(() => {
+      const fromId = incomingCall.value?.fromId || incomingCall.value?.from_id
+      if (!fromId) {
+        return 'Unknown caller'
+      }
+
+      if (selectedUser.value && sameUserId(selectedUser.value.id, fromId)) {
+        return selectedUser.value.name || `User #${fromId}`
+      }
+
+      const matchedUser = userView.value.find((user) => sameUserId(user?.id, fromId))
+      return matchedUser?.name || `User #${fromId}`
+    })
+
+    const incomingCallerPhoto = computed(() => {
+      const fromId = incomingCall.value?.fromId || incomingCall.value?.from_id
+      if (!fromId) {
+        return ''
+      }
+
+      if (selectedUser.value && sameUserId(selectedUser.value.id, fromId)) {
+        return getUserPhoto(selectedUser.value)
+      }
+
+      const matchedUser = userView.value.find((user) => sameUserId(user?.id, fromId))
+      return getUserPhoto(matchedUser)
+    })
+
+    const outgoingCallDisplayName = computed(() => {
+      const toId = outgoingCall.value?.toId || outgoingCall.value?.to_id || partnerId.value
+      if (!toId) {
+        return 'Unknown user'
+      }
+
+      if (selectedUser.value && sameUserId(selectedUser.value.id, toId)) {
+        return selectedUser.value.name || `User #${toId}`
+      }
+
+      const matchedUser = userView.value.find((user) => sameUserId(user?.id, toId))
+      return matchedUser?.name || `User #${toId}`
+    })
+
+    const outgoingCallStatusText = computed(() => outgoingCall.value?.status || 'Ringing')
+
+    const filteredUsers = computed(() => {
+      const term = searchQuery.value.trim().toLowerCase()
+      if (!term) {
+        return userView.value
+      }
+
+      return userView.value.filter((user) => {
+        const name = (user?.name || '').toLowerCase()
+        const username = (user?.username || '').toLowerCase()
+        const email = (user?.email || '').toLowerCase()
+        return name.includes(term) || username.includes(term) || email.includes(term)
+      })
+    })
+
+    const visibleUsers = computed(() => {
+      if (!selectedUser.value) {
+        return filteredUsers.value.slice(0, 10)
+      }
+
+      const selectedId = selectedUser.value.id
+      const rest = filteredUsers.value.filter((user) => !sameUserId(user?.id, selectedId))
+      const selectedInList = filteredUsers.value.find((user) => sameUserId(user?.id, selectedId))
+
+      if (!selectedInList) {
+        return rest.slice(0, 10)
+      }
+
+      return [selectedInList, ...rest].slice(0, 10)
+    })
+
     const allService = new AllServiceService();
 
     const weatherCodeText = (code) => {
@@ -1125,9 +1331,364 @@ export default {
       }
     }
 
+    const persistKnownChatUsers = () => {
+      localStorage.setItem(chatUsersStorageKey.value, JSON.stringify(knownChatUserIds.value))
+    }
+
+    const rememberChattedUser = (userId) => {
+      if (!userId || sameUserId(userId, currentUserId.value)) {
+        return
+      }
+
+      const existing = knownChatUserIds.value.find((id) => sameUserId(id, userId))
+      if (existing !== undefined) {
+        knownChatUserIds.value = [userId, ...knownChatUserIds.value.filter((id) => !sameUserId(id, userId))]
+      } else {
+        knownChatUserIds.value = [userId, ...knownChatUserIds.value]
+      }
+
+      knownChatUserIds.value = knownChatUserIds.value.slice(0, 200)
+      persistKnownChatUsers()
+    }
+
+    const clearIncomingCallTimer = () => {
+      if (incomingCallTimeoutId.value) {
+        clearTimeout(incomingCallTimeoutId.value)
+        incomingCallTimeoutId.value = null
+      }
+    }
+
+    const clearIncomingCallState = () => {
+      clearIncomingCallTimer()
+      showIncomingCallModal.value = false
+      incomingCall.value = null
+      isCallActionPending.value = false
+    }
+
+    const clearOutgoingCallState = () => {
+      showOutgoingCallModal.value = false
+      outgoingCall.value = null
+      isCallActionPending.value = false
+    }
+
+    const parseGroupMembers = (members) => {
+      if (Array.isArray(members)) {
+        return members
+          .map((member) => {
+            if (member && typeof member === 'object') {
+              return {
+                id: member.id ?? member.user_id,
+                name: member.name || member.user?.name || '',
+              }
+            }
+
+            return { id: member, name: '' }
+          })
+          .filter((member) => member.id !== null && member.id !== undefined && member.id !== '')
+      }
+
+      if (typeof members === 'string') {
+        try {
+          const parsed = JSON.parse(members)
+          return parseGroupMembers(parsed)
+        } catch {
+          return []
+        }
+      }
+
+      return []
+    }
+
+    const formatProfileDate = (value) => {
+      if (!value) {
+        return ''
+      }
+
+      const parsed = new Date(value)
+      if (Number.isNaN(parsed.getTime())) {
+        return ''
+      }
+
+      return parsed.toLocaleDateString([], {
+        month: 'short',
+        day: '2-digit',
+        year: 'numeric',
+      })
+    }
+
+    const getUserPresenceText = (user) => {
+      if (!user) {
+        return 'Offline'
+      }
+
+      if (user.is_online || user.online || user.status === 'online') {
+        return 'Online'
+      }
+
+      const lastSeen = user.last_seen_at || user.last_seen || user.last_active_at
+      if (!lastSeen) {
+        return 'Offline'
+      }
+
+      const parsed = new Date(lastSeen)
+      if (Number.isNaN(parsed.getTime())) {
+        return 'Offline'
+      }
+
+      return `Last seen ${parsed.toLocaleString([], {
+        month: 'short',
+        day: '2-digit',
+        hour: '2-digit',
+        minute: '2-digit',
+      })}`
+    }
+
+    const toggleMenu = () => {
+      showHeaderMenu.value = !showHeaderMenu.value
+    }
+
+    const openSettings = () => {
+      showHeaderMenu.value = false
+      profileForm.value.name = currentUserName.value || profileForm.value.name || ''
+      profileForm.value.accentColor = settings.value.accentColor || defaultSettings.accentColor
+      showSettings.value = true
+    }
+
+    const closeSettings = () => {
+      showSettings.value = false
+    }
+
+    const resetSettings = () => {
+      settings.value = { ...defaultSettings }
+      profileForm.value.accentColor = defaultSettings.accentColor
+      profileForm.value.image = null
+      profileForm.value.name = currentUserName.value || ''
+      profilePreviewUrl.value = ''
+      localStorage.removeItem(settingsStorageKey.value)
+    }
+
+    const handleImageUpload = (event) => {
+      const file = event?.target?.files?.[0]
+      profileForm.value.image = file || null
+
+      if (profilePreviewUrl.value) {
+        URL.revokeObjectURL(profilePreviewUrl.value)
+        profilePreviewUrl.value = ''
+      }
+
+      if (file) {
+        profilePreviewUrl.value = URL.createObjectURL(file)
+      }
+    }
+
+    const closeUserDetails = () => {
+      showUserDetails.value = false
+      isUserDetailsLoading.value = false
+      userDetailsError.value = ''
+    }
+
+    const userId = async (id) => {
+      if (!id) {
+        return null
+      }
+
+      try {
+        const response = await allService.getUserProfile(id)
+        const profile = response?.user || response?.data || response
+        if (!profile || !profile.id) {
+          return null
+        }
+
+        return profile
+      } catch (error) {
+        console.warn('Unable to fetch user profile:', error?.response?.data || error?.message || error)
+        return null
+      }
+    }
+
+    const updateProfile = async () => {
+      const nextName = (profileForm.value.name || '').trim()
+      const nextAccent = profileForm.value.accentColor || defaultSettings.accentColor
+
+      settings.value = { accentColor: nextAccent }
+      localStorage.setItem(settingsStorageKey.value, JSON.stringify(settings.value))
+
+      const shouldSendProfileUpdate = Boolean(nextName || profileForm.value.image)
+      if (!shouldSendProfileUpdate) {
+        closeSettings()
+        return
+      }
+
+      const formData = new FormData()
+      if (nextName) {
+        formData.append('name', nextName)
+      }
+      if (profileForm.value.phone) {
+        formData.append('phone', profileForm.value.phone)
+      }
+      if (profileForm.value.address) {
+        formData.append('address', profileForm.value.address)
+      }
+      if (profileForm.value.city) {
+        formData.append('city', profileForm.value.city)
+      }
+      if (profileForm.value.country) {
+        formData.append('country', profileForm.value.country)
+      }
+      if (profileForm.value.image) {
+        formData.append('image', profileForm.value.image)
+      }
+
+      try {
+        const response = await allService.updateProfile(formData)
+        const updatedUser = response?.user || response?.data || response
+
+        if (updatedUser?.name) {
+          currentUserName.value = updatedUser.name
+          profileForm.value.name = updatedUser.name
+        }
+
+        currentUserProfile.value = {
+          ...(currentUserProfile.value || {}),
+          ...updatedUser,
+        }
+
+        profileForm.value.phone = updatedUser?.phone ?? profileForm.value.phone
+        profileForm.value.address = updatedUser?.address ?? profileForm.value.address
+        profileForm.value.city = updatedUser?.city ?? profileForm.value.city
+        profileForm.value.country = updatedUser?.country ?? profileForm.value.country
+
+        const nextPhoto = getUserPhoto(updatedUser)
+        if (nextPhoto) {
+          currentUserPhoto.value = nextPhoto
+        }
+
+        if (currentUserId.value) {
+          userView.value = userView.value.map((user) => {
+            if (!sameUserId(user?.id, currentUserId.value)) {
+              return user
+            }
+
+            return {
+              ...user,
+              ...updatedUser,
+              profile_photo_url: nextPhoto || user.profile_photo_url,
+            }
+          })
+        }
+      } catch (error) {
+        console.error('Profile update failed:', error?.response?.data || error?.message || error)
+      } finally {
+        closeSettings()
+      }
+    }
+
+    const fetchUserId = async () => {
+      const response = await allService.getUser()
+      const authUser = response?.user || response?.data || response
+
+      currentUserId.value = authUser?.id || null
+      currentUserName.value = authUser?.name || authUser?.username || 'User'
+      currentUserPhoto.value = getUserPhoto(authUser)
+      currentUserProfile.value = authUser || null
+
+      profileForm.value.name = currentUserName.value || ''
+      profileForm.value.phone = authUser?.phone || ''
+      profileForm.value.address = authUser?.address || ''
+      profileForm.value.city = authUser?.city || ''
+      profileForm.value.country = authUser?.country || ''
+
+      loadSettings()
+      loadKnownChatUsers()
+      await loadGroups()
+    }
+
+    const fetchUserData = async (query = '') => {
+      const requestId = ++latestSearchRequestId.value
+
+      try {
+        const response = await allService.searchUser(query, 1)
+        const users = Array.isArray(response)
+          ? response
+          : (
+              Array.isArray(response?.users)
+                ? response.users
+                : (
+                    Array.isArray(response?.data)
+                      ? response.data
+                      : (
+                          Array.isArray(response?.results)
+                            ? response.results
+                            : (
+                                Array.isArray(response?.data?.data)
+                                  ? response.data.data
+                                  : []
+                              )
+                        )
+                  )
+            )
+
+        if (requestId !== latestSearchRequestId.value) {
+          return
+        }
+
+        const uniqueUsers = []
+        const seen = new Set()
+
+        users.forEach((user) => {
+          const id = user?.id
+          if (!id || sameUserId(id, currentUserId.value)) {
+            return
+          }
+
+          const key = String(id)
+          if (seen.has(key)) {
+            return
+          }
+
+          seen.add(key)
+          uniqueUsers.push({ ...user })
+        })
+
+        const trimmedQuery = query.trim()
+        const knownIds = knownChatUserIds.value
+
+        if (!trimmedQuery) {
+          if (!knownIds.length) {
+            userView.value = []
+            return
+          }
+
+          const recentOnlyUsers = uniqueUsers.filter((user) =>
+            knownIds.some((id) => sameUserId(id, user.id))
+          )
+
+          recentOnlyUsers.sort((a, b) => {
+            const aIndex = knownIds.findIndex((id) => sameUserId(id, a.id))
+            const bIndex = knownIds.findIndex((id) => sameUserId(id, b.id))
+            return aIndex - bIndex
+          })
+
+          userView.value = recentOnlyUsers
+          return
+        }
+
+        userView.value = uniqueUsers
+      } catch (error) {
+        if (requestId !== latestSearchRequestId.value) {
+          return
+        }
+
+        console.error('Error fetching user data:', error?.response?.data || error?.message || error)
+        // Keep current list to avoid flashing an empty sidebar on transient search errors.
+      }
+    }
+
     const groups = ref([])
     const showGroupManager = ref(false)
     const editingGroupId = ref(null)
+    const groupFormError = ref('')
+    const groupFormSubmitting = ref(false)
     const groupForm = ref({
       name: '',
       members: [],
@@ -1210,7 +1771,12 @@ export default {
       }
     }
 
-    const isGroupConversation = (conversation) => Boolean(conversation?.type === 'group' || conversation?.group_id)
+    const isGroupConversation = (conversation) => Boolean(
+      conversation?.type === 'group' ||
+      conversation?.group_id ||
+      conversation?.conversation_type === 'group' ||
+      (typeof conversation?.id === 'string' && conversation.id.startsWith('group-'))
+    )
 
     const formatGroupPreview = (group) => {
       const members = Array.isArray(group?.members) ? group.members : []
@@ -1242,34 +1808,112 @@ export default {
 
     const loadGroupMessages = async (groupId) => {
       const group = groups.value.find((item) => sameUserId(item.id, groupId))
-      chat.value.messages = Array.isArray(group?.messages) ? group.messages : []
+      const localMessages = Array.isArray(group?.messages) ? group.messages : []
+      chat.value.messages = localMessages
+
+      try {
+        const response = await allService.getGroupMessages(groupId)
+        let serverMessages = []
+
+        if (Array.isArray(response?.messages)) {
+          serverMessages = response.messages
+        } else if (Array.isArray(response?.data)) {
+          serverMessages = response.data
+        } else if (Array.isArray(response)) {
+          serverMessages = response
+        }
+
+        if (!serverMessages.length) {
+          return
+        }
+
+        const normalizedServerMessages = serverMessages
+          .map((item) => normalizeMessagePayload(item, { group_id: groupId, conversation_type: 'group' }))
+          .filter((item) => sameUserId(item.group_id, groupId) || item.conversation_type === 'group')
+
+        const mergedMessages = [...localMessages]
+        normalizedServerMessages.forEach((incoming) => {
+          const exists = mergedMessages.some((item) => areMessagesEqual(item, incoming))
+          if (!exists) {
+            mergedMessages.push(incoming)
+          }
+        })
+
+        chat.value.messages = mergedMessages
+
+        const groupIndex = groups.value.findIndex((item) => sameUserId(item.id, groupId))
+        if (groupIndex !== -1) {
+          groups.value[groupIndex] = {
+            ...groups.value[groupIndex],
+            messages: mergedMessages,
+          }
+          persistGroups()
+        }
+      } catch (error) {
+        console.warn('Unable to load group messages from API, using cached messages only:', error?.response?.data || error?.message || error)
+      }
     }
 
     const saveGroup = async () => {
       const name = (groupForm.value.name || '').trim()
-      const selectedIds = Array.from(new Set((groupForm.value.members || []).map(Number)))
+      const selectedIds = Array.from(
+        new Set(
+          (groupForm.value.members || [])
+            .map((id) => normalizeId(id))
+            .filter((id) => id !== null && id !== undefined && id !== '')
+        )
+      )
+      const participantIds = currentUserId.value && !selectedIds.some((id) => sameUserId(id, currentUserId.value))
+        ? [currentUserId.value, ...selectedIds]
+        : selectedIds
 
-      if (!name || selectedIds.length < 1) {
+      if (!name) {
+        groupFormError.value = 'Please enter a group name.'
         return
       }
+
+      if (selectedIds.length < 1) {
+        groupFormError.value = 'Please select at least one member.'
+        return
+      }
+
+      groupFormError.value = ''
+      groupFormSubmitting.value = true
 
       try {
         if (editingGroupId.value) {
           await allService.updateGroup(editingGroupId.value, { name })
         } else {
-          await allService.createGroup({ name, user_ids: selectedIds })
+          await allService.createGroup({
+            name,
+            user_ids: participantIds,
+            member_ids: participantIds,
+            members: participantIds,
+            users: participantIds,
+          })
         }
 
         await loadGroups()
         closeGroupManager()
       } catch (error) {
+        const responseData = error?.response?.data
+        const message =
+          responseData?.message ||
+          Object.values(responseData?.errors || {}).flat().find(Boolean) ||
+          error?.message ||
+          'Failed to save group.'
+
+        groupFormError.value = message
         console.error('Failed to save group:', error?.response?.data || error?.message || error)
+      } finally {
+        groupFormSubmitting.value = false
       }
     }
 
     const openGroupManager = (group = null) => {
       showHeaderMenu.value = false
       editingGroupId.value = group?.id || null
+      groupFormError.value = ''
 
       if (group) {
         groupForm.value = {
@@ -1288,6 +1932,8 @@ export default {
     const closeGroupManager = () => {
       showGroupManager.value = false
       editingGroupId.value = null
+      groupFormError.value = ''
+      groupFormSubmitting.value = false
       groupForm.value = { name: '', members: [] }
     }
 
@@ -1308,11 +1954,37 @@ export default {
       newGroupMembers.value = []
     }
 
-    const openGroupDetails = (group) => {
+    const openGroupDetails = async (group) => {
       if (!group) return
 
-      activeGroupDetails.value = group
+      const localGroup = groups.value.find((item) => sameUserId(item.id, group.id)) || group
+      activeGroupDetails.value = { ...localGroup, type: 'group' }
       showGroupDetails.value = true
+
+      try {
+        const details = await allService.getGroup(group.id)
+        const detailsGroup = details?.group || details?.data?.group || details?.data || details
+        if (!detailsGroup?.id) {
+          return
+        }
+
+        const merged = normalizeServerGroup(detailsGroup, localGroup)
+        const index = groups.value.findIndex((item) => sameUserId(item.id, merged.id))
+        if (index === -1) {
+          groups.value.unshift(merged)
+        } else {
+          groups.value[index] = { ...groups.value[index], ...merged }
+        }
+
+        persistGroups()
+        activeGroupDetails.value = { ...merged, type: 'group' }
+
+        if (selectedUser.value && sameUserId(selectedUser.value.id, merged.id) && isGroupConversation(selectedUser.value)) {
+          selectedUser.value = { ...selectedUser.value, ...merged, type: 'group' }
+        }
+      } catch {
+        // Keep current modal data if detail endpoint is unavailable.
+      }
     }
 
     const closeGroupDetails = () => {
@@ -1399,10 +2071,313 @@ export default {
       }
     }
 
+    const normalizeMessagePayload = (payload, fallback = {}) => {
+      const source = typeof payload?.message === 'object' && payload.message !== null ? payload.message : payload
+      const attachmentSource = source?.attachment || source?.file || source?.media || fallback?.attachment || null
+
+      return {
+        id: source?.id ?? source?.message_id ?? fallback?.id ?? null,
+        from_id: source?.from_id ?? source?.sender_id ?? source?.user_id ?? fallback?.from_id ?? null,
+        to_id: source?.to_id ?? source?.receiver_id ?? fallback?.to_id ?? null,
+        group_id: source?.group_id ?? source?.groupId ?? fallback?.group_id ?? null,
+        group_name: source?.group_name ?? source?.groupName ?? fallback?.group_name ?? '',
+        group_members: parseGroupMembers(source?.group_members ?? source?.members ?? fallback?.group_members ?? fallback?.members),
+        conversation_type: source?.conversation_type ?? source?.conversationType ?? fallback?.conversation_type ?? '',
+        sender_name: source?.sender_name ?? source?.from_name ?? source?.from_user_name ?? fallback?.sender_name ?? '',
+        receiver_name: source?.receiver_name ?? source?.to_name ?? source?.to_user_name ?? fallback?.receiver_name ?? '',
+        body: source?.body ?? source?.message ?? source?.text ?? fallback?.body ?? '',
+        created_at: source?.created_at ?? source?.date ?? fallback?.created_at ?? new Date().toISOString(),
+        attachment: normalizeAttachment(attachmentSource, {
+          ...(fallback?.attachment || {}),
+          name: source?.attachment_name ?? source?.file_name ?? source?.original_name ?? fallback?.attachment_name ?? '',
+          mimeType: source?.attachment_mime_type ?? source?.attachment_mime ?? source?.mime_type ?? fallback?.attachment_mime_type ?? '',
+          size: source?.attachment_size ?? source?.file_size ?? fallback?.attachment_size ?? 0,
+        }),
+        attachment_url: source?.attachment_url ?? source?.attachment ?? source?.file_url ?? source?.media_url ?? fallback?.attachment_url ?? '',
+        attachment_name: source?.attachment_name ?? source?.file_name ?? source?.original_name ?? fallback?.attachment_name ?? '',
+        attachment_mime_type: source?.attachment_mime_type ?? source?.attachment_mime ?? source?.mime_type ?? fallback?.attachment_mime_type ?? '',
+        attachment_kind: source?.attachment_kind ?? fallback?.attachment_kind ?? '',
+        attachment_size: source?.attachment_size ?? source?.file_size ?? fallback?.attachment_size ?? 0,
+        _optimistic: Boolean(fallback?._optimistic),
+      }
+    }
+
+    const sendGroupMessage = async () => {
+      const group = groups.value.find((item) => sameUserId(item.id, selectedUser.value?.id))
+      if (!group) return
+
+      const text = message.value.trim()
+      const attachment = selectedAttachment.value
+      const hasAttachment = Boolean(attachment?.file)
+      const effectiveText = text || (hasAttachment ? (attachment?.name || 'Attachment') : '')
+
+      if (!text && !hasAttachment) {
+        message.value = ''
+        return
+      }
+
+      const optimisticAttachment = hasAttachment
+        ? {
+            url: attachment.previewUrl || '',
+            name: attachment.name,
+            mimeType: attachment.mimeType,
+            kind: attachment.kind,
+            size: attachment.size,
+          }
+        : null
+
+      const optimisticMessage = normalizeMessagePayload(
+        {
+          id: `tmp-${Date.now()}-${Math.random().toString(36).slice(2)}`,
+          from_id: currentUserId.value,
+          group_id: group.id,
+          group_name: group.name,
+          conversation_type: 'group',
+          body: effectiveText,
+          created_at: new Date().toISOString(),
+          attachment: optimisticAttachment,
+        },
+        { _optimistic: true, attachment: optimisticAttachment }
+      )
+
+      registerPendingOutgoingMessage(optimisticMessage)
+      chat.value.messages.push(optimisticMessage)
+      message.value = ''
+
+      try {
+        const payload = hasAttachment
+          ? (() => {
+              const formData = new FormData()
+              formData.append('group_id', String(group.id))
+              formData.append('group_name', group.name || '')
+              formData.append('conversation_type', 'group')
+              formData.append('message', effectiveText)
+              formData.append('body', effectiveText)
+              formData.append('attachment', attachment.file)
+              formData.append('attachment_name', attachment.name)
+              formData.append('attachment_mime_type', attachment.mimeType || '')
+              formData.append('attachment_kind', attachment.kind || '')
+              formData.append('attachment_size', String(attachment.size || 0))
+              return formData
+            })()
+          : {
+              group_id: Number(group.id),
+              group_name: group.name,
+              conversation_type: 'group',
+              message: effectiveText,
+              body: effectiveText,
+            }
+
+        const response = await allService.sendGroupMessage(Number(group.id), payload)
+        const serverMessage = normalizeMessagePayload(response?.message ?? response?.data ?? response, optimisticMessage)
+
+        const finalMessage = {
+          ...optimisticMessage,
+          ...serverMessage,
+          group_id: group.id,
+          group_name: group.name,
+          conversation_type: 'group',
+          _optimistic: false,
+        }
+
+        chat.value.messages = chat.value.messages.map((item) => (item.id === optimisticMessage.id ? finalMessage : item))
+
+        const index = groups.value.findIndex((item) => sameUserId(item.id, group.id))
+        if (index !== -1) {
+          const existing = groups.value[index]
+          const nextMessages = [...(existing.messages || [])]
+          if (!nextMessages.some((item) => areMessagesEqual(item, finalMessage))) {
+            nextMessages.push(finalMessage)
+          }
+          groups.value[index] = { ...existing, messages: nextMessages }
+          persistGroups()
+        }
+
+        clearSelectedAttachment()
+      } catch (error) {
+        clearPendingOutgoingMessage(optimisticMessage)
+        chat.value.messages = chat.value.messages.filter((item) => item.id !== optimisticMessage.id)
+        message.value = text
+        console.error('Group send failed:', error?.response?.data || error?.message || error)
+      }
+    }
+
+    const sendMessage = async () => {
+      if (!selectedUser.value) {
+        return
+      }
+
+      if (isGroupConversation(selectedUser.value)) {
+        await sendGroupMessage()
+        return
+      }
+
+      const text = message.value.trim()
+      const attachment = selectedAttachment.value
+      const hasAttachment = Boolean(attachment?.file)
+      const effectiveText = text || (hasAttachment ? (attachment?.name || 'Attachment') : '')
+
+      if (!text && !hasAttachment) {
+        message.value = ''
+        return
+      }
+
+      const optimisticAttachment = hasAttachment
+        ? {
+            url: attachment.previewUrl || '',
+            name: attachment.name,
+            mimeType: attachment.mimeType,
+            kind: attachment.kind,
+            size: attachment.size,
+          }
+        : null
+
+      const optimisticMessage = normalizeMessagePayload(
+        {
+          id: `tmp-${Date.now()}-${Math.random().toString(36).slice(2)}`,
+          from_id: currentUserId.value,
+          to_id: selectedUser.value.id,
+          body: effectiveText,
+          created_at: new Date().toISOString(),
+          attachment: optimisticAttachment,
+        },
+        { _optimistic: true, attachment: optimisticAttachment }
+      )
+
+      registerPendingOutgoingMessage(optimisticMessage)
+      chat.value.messages.push(optimisticMessage)
+      message.value = ''
+
+      try {
+        const payload = hasAttachment
+          ? (() => {
+              const formData = new FormData()
+              formData.append('user_id', String(selectedUser.value.id))
+              formData.append('message', effectiveText)
+              formData.append('body', effectiveText)
+              formData.append('attachment', attachment.file)
+              formData.append('attachment_name', attachment.name)
+              formData.append('attachment_mime_type', attachment.mimeType || '')
+              formData.append('attachment_kind', attachment.kind || '')
+              formData.append('attachment_size', String(attachment.size || 0))
+              return formData
+            })()
+          : {
+              user_id: selectedUser.value.id,
+              message: effectiveText,
+            }
+
+        const response = await allService.sendMessages(payload)
+        const serverMessage = normalizeMessagePayload(response?.message ?? response?.data ?? response, optimisticMessage)
+
+        chat.value.messages = chat.value.messages.map((item) =>
+          item.id === optimisticMessage.id
+            ? {
+                ...optimisticMessage,
+                ...serverMessage,
+                _optimistic: false,
+              }
+            : item
+        )
+
+        rememberChattedUser(selectedUser.value.id)
+        clearSelectedAttachment()
+      } catch (error) {
+        clearPendingOutgoingMessage(optimisticMessage)
+        chat.value.messages = chat.value.messages.filter((item) => item.id !== optimisticMessage.id)
+        message.value = text
+        console.error('Send failed:', error?.response?.data || error?.message || error)
+      }
+    }
+
+    const subscribeToRealtimeMessages = (authUserId) => {
+      if (!authUserId) return
+
+      activeChannelNames.value.forEach((channelName) => {
+        echo.leave(channelName)
+      })
+
+      const userChannel = `chat.${authUserId}`
+      activeChannelNames.value = [userChannel]
+
+      const handleRealtimeEvent = (event) => {
+        const incoming = normalizeMessagePayload(event)
+
+        if (isGroupConversation(incoming)) {
+          upsertGroupFromIncomingMessage(incoming)
+          const isSelectedGroup = selectedUser.value && isGroupConversation(selectedUser.value) && sameUserId(selectedUser.value.id, incoming.group_id)
+          if (isSelectedGroup) {
+            appendMessage(incoming)
+          }
+          return
+        }
+
+        const isCurrentConversation = selectedUser.value && isMessageBetweenUsers(incoming, currentUserId.value, selectedUser.value.id)
+        if (isCurrentConversation) {
+          const otherUserId = sameUserId(incoming.from_id, currentUserId.value) ? incoming.to_id : incoming.from_id
+          rememberChattedUser(otherUserId)
+          appendMessage(incoming)
+        }
+      }
+
+      const privateChannel = echo.private(userChannel)
+      ;['.chat.message', 'chat.message', '.message.sent', 'message.sent', 'MessageSent', '.MessageSent', '.my-event', 'my-event']
+        .forEach((eventName) => privateChannel.listen(eventName, handleRealtimeEvent))
+
+      privateChannel.error((err) => console.error('Echo private error:', err))
+    }
+
+    const loadCallHistoryForUser = async (targetUserId) => {
+      if (!targetUserId) {
+        selectedCallHistory.value = []
+        return []
+      }
+
+      try {
+        const items = await CallService.getCallHistory(targetUserId)
+        selectedCallHistory.value = Array.isArray(items) ? items : []
+        return selectedCallHistory.value
+      } catch {
+        selectedCallHistory.value = []
+        return []
+      }
+    }
+
+    const startCall = async (toId) => {
+      partnerId.value = toId || null
+      console.warn('Call start placeholder: verify backend call signaling endpoints.')
+    }
+
+    const endCurrentCall = async () => {
+      const activeId = partnerId.value
+      partnerId.value = null
+      if (!activeId) return
+      try {
+        await CallService.endCall(activeId)
+      } catch {
+        // no-op fallback
+      }
+    }
+
+    const rejectIncomingCall = async () => {
+      showIncomingCallModal.value = false
+      incomingCall.value = null
+    }
+
+    const acceptIncomingCall = async () => {
+      showIncomingCallModal.value = false
+    }
+
+    const subscribeToCallEvents = () => {
+      // Keep as a safe no-op if call realtime is not configured in backend yet.
+    }
+
     const selectGroup = async (group) => {
       if (!group) {
         return
       }
+
+      leaveGroupRealtimeChannels()
 
       let resolvedGroup = { ...group, type: 'group' }
 
@@ -1429,6 +2404,7 @@ export default {
       showEmojiPicker.value = false
       clearSelectedAttachment()
       await loadGroupMessages(selectedUser.value.id)
+      subscribeToGroupRealtimeMessages(selectedUser.value.id)
       selectedCallHistory.value = []
 
       if (isMobileView.value) {
@@ -1436,888 +2412,8 @@ export default {
       }
     }
 
-    const persistKnownChatUsers = () => {
-      localStorage.setItem(chatUsersStorageKey.value, JSON.stringify(knownChatUserIds.value))
-    }
-
-    const rememberChattedUser = (userId) => {
-      if (!userId) {
-        return
-      }
-
-      const normalized = Number.isNaN(Number(userId)) ? userId : Number(userId)
-      const alreadyExists = knownChatUserIds.value.includes(normalized)
-      if (alreadyExists) {
-        return
-      }
-
-      knownChatUserIds.value = [...knownChatUserIds.value, normalized]
-      persistKnownChatUsers()
-    }
-
-    const userHasChatHint = (user) =>
-      Boolean(
-        user?.last_message ||
-        user?.lastMessage ||
-        user?.latest_message ||
-        user?.latestMessage ||
-        user?.message_count > 0 ||
-        user?.messages_count > 0 ||
-        user?.conversation_id ||
-        user?.chat_id
-      )
-
-    const chatContacts = computed(() => {
-      const knownIds = new Set(knownChatUserIds.value)
-
-      return userView.value.filter((user) =>
-        userHasChatHint(user) ||
-        knownIds.has(user?.id) ||
-        (selectedUser.value && user?.id === selectedUser.value.id)
-      )
-    })
-
-    const openSettings = () => {
-      profileForm.value = {
-        name: currentUserName.value || '',
-        image: null,
-        accentColor: settings.value.accentColor || defaultSettings.accentColor
-      }
-      profilePreviewUrl.value = ''
-      showHeaderMenu.value = false
-      showSettings.value = true
-    }
-
-    const closeSettings = () => {
-      showSettings.value = false
-      profilePreviewUrl.value = ''
-    }
-
-    const toggleMenu = () => {
-      showHeaderMenu.value = !showHeaderMenu.value
-    }
-
-    const resetSettings = () => {
-      settings.value = { ...defaultSettings }
-      profileForm.value = {
-        name: currentUserName.value || '',
-        image: null,
-        accentColor: defaultSettings.accentColor
-      }
-      profilePreviewUrl.value = ''
-      localStorage.removeItem(settingsStorageKey.value)
-    }
-
-    const handleImageUpload = (event) => {
-      const file = event?.target?.files?.[0]
-      if (!file) {
-        return
-      }
-
-      const isImage = file.type?.startsWith('image/')
-      const maxBytes = 2 * 1024 * 1024
-
-      if (!isImage) {
-        console.warn('Please select a valid image file.')
-        event.target.value = ''
-        return
-      }
-
-      if (file.size > maxBytes) {
-        console.warn('Image is too large. Max size is 2MB.')
-        event.target.value = ''
-        return
-      }
-
-      profileForm.value.image = file
-      profilePreviewUrl.value = URL.createObjectURL(file)
-    }
-
-    const getUserPhoto = (user) => {
-      if (!user) {
-        return ''
-      }
-
-      if (user.profile_photo_url) {
-        return user.profile_photo_url
-      }
-
-      if (!user.profile_photo_path) {
-        return ''
-      }
-
-      const baseUrl = (process.env.VUE_APP_API_BASE_URL || 'http://127.0.0.1:8000').replace(/\/$/, '')
-      const normalizedPath = user.profile_photo_path.replace(/^\/+/, '')
-
-      if (normalizedPath.startsWith('http://') || normalizedPath.startsWith('https://')) {
-        return normalizedPath
-      }
-
-      return normalizedPath.startsWith('storage/')
-        ? `${baseUrl}/${normalizedPath}`
-        : `${baseUrl}/storage/${normalizedPath}`
-    }
-
-    const updateProfile = async () => {
-      const formData = new FormData()
-      formData.append('name', (profileForm.value.name || '').trim() || currentUserName.value || '')
-
-      if (profileForm.value.image) {
-        formData.append('image', profileForm.value.image)
-      }
-
-      try {
-        const response = await allService.updateProfile(formData)
-        const updatedUser = response?.user
-
-        if (updatedUser?.name) {
-          currentUserName.value = updatedUser.name
-        }
-
-        currentUserPhoto.value = getUserPhoto(updatedUser)
-
-        settings.value = {
-          accentColor: profileForm.value.accentColor || defaultSettings.accentColor
-        }
-        localStorage.setItem(settingsStorageKey.value, JSON.stringify(settings.value))
-
-        closeSettings()
-      } catch (error) {
-        const details = error?.response?.data || error?.message || error
-        console.error('Profile update failed:', details)
-      }
-    }
-
-    const showSidebarPane = computed(() => !isMobileView.value || activeMobilePane.value === 'list');
-    const showChatPane = computed(() => !isMobileView.value || activeMobilePane.value === 'chat');
-    const isDetailsOpen = computed(() =>
-      showUserDetails.value || showCallHistoryDetails.value || showGroupDetails.value
-    )
-    const incomingCallDisplayName = computed(() => {
-      const fromId = incomingCall.value?.fromId
-
-      if (!fromId) {
-        return 'Unknown caller'
-      }
-
-      if (selectedUser.value && sameUserId(selectedUser.value.id, fromId) && selectedUser.value.name) {
-        return selectedUser.value.name
-      }
-
-      const matchedUser = userView.value.find((user) => sameUserId(user?.id, fromId))
-      if (matchedUser?.name) {
-        return matchedUser.name
-      }
-
-      return `User #${fromId}`
-    })
-
-    const incomingCallerPhoto = computed(() => {
-      const fromId = incomingCall.value?.fromId
-
-      if (!fromId) {
-        return ''
-      }
-
-      if (selectedUser.value && sameUserId(selectedUser.value.id, fromId)) {
-        return getUserPhoto(selectedUser.value)
-      }
-
-      const matchedUser = userView.value.find((user) => sameUserId(user?.id, fromId))
-      if (matchedUser) {
-        return getUserPhoto(matchedUser)
-      }
-
-      return ''
-    })
-
-    const outgoingCallDisplayName = computed(() => {
-      const toId = outgoingCall.value?.toId || partnerId.value
-
-      if (!toId) {
-        return 'Unknown user'
-      }
-
-      if (selectedUser.value && sameUserId(selectedUser.value.id, toId) && selectedUser.value.name) {
-        return selectedUser.value.name
-      }
-
-      const matchedUser = userView.value.find((user) => sameUserId(user?.id, toId))
-      if (matchedUser?.name) {
-        return matchedUser.name
-      }
-
-      return `User #${toId}`
-    })
-
-    const outgoingCallStatusText = computed(() => outgoingCall.value?.status || 'Ringing')
-
-    // Without a query, show chat contacts only. With a query, search across fetched users.
-    const filteredUsers = computed(() => {
-      const term = searchQuery.value.trim().toLowerCase();
-      const source = term ? userView.value : chatContacts.value;
-
-      return term
-        ? source.filter(user =>
-            (user?.name || '').toLowerCase().includes(term)
-          )
-        : source;
-    });
-
-    const visibleUsers = computed(() => {
-      const term = searchQuery.value.trim();
-      if (term) {
-        return filteredUsers.value;
-      }
-
-      // Put selected user at top, followed by other users
-      if (selectedUser.value) {
-        const otherUsers = filteredUsers.value.filter(user => user.id !== selectedUser.value.id);
-        return [selectedUser.value, ...otherUsers.slice(0, 9)];
-      }
-
-      return filteredUsers.value.slice(0, 10);
-    });
-
-    const extractUserPage = (response) => {
-      if (Array.isArray(response)) {
-        return {
-          items: response,
-          nextPage: null,
-          currentPage: 1,
-          lastPage: 1
-        };
-      }
-
-      if (Array.isArray(response?.users)) {
-        return {
-          items: response.users,
-          nextPage: response.next_page_url ? (response.current_page || 1) + 1 : null,
-          currentPage: response.current_page || 1,
-          lastPage: response.last_page || 1
-        };
-      }
-
-      if (Array.isArray(response?.data?.data)) {
-        return {
-          items: response.data.data,
-          nextPage: response.data.next_page_url ? (response.data.current_page || 1) + 1 : null,
-          currentPage: response.data.current_page || 1,
-          lastPage: response.data.last_page || 1
-        };
-      }
-
-      if (Array.isArray(response?.data)) {
-        return {
-          items: response.data,
-          nextPage: response.next_page_url ? (response.current_page || 1) + 1 : null,
-          currentPage: response.current_page || 1,
-          lastPage: response.last_page || 1
-        };
-      }
-
-      return {
-        items: [],
-        nextPage: null,
-        currentPage: 1,
-        lastPage: 1
-      };
-    };
-
-    const fetchUserData = async (query) => {
-      const requestId = ++latestSearchRequestId.value;
-      const searchMode = Boolean((query || '').toString().trim())
-      const targetLimit = searchMode ? 50 : 10
-
-      try {
-        const users = [];
-        let page = 1;
-        let shouldContinue = true;
-
-        while (shouldContinue && page <= 20 && users.length < targetLimit) {
-          const response = await allService.searchUser(query, page);
-          const parsed = extractUserPage(response);
-
-          users.push(...parsed.items);
-
-          const hasNextByUrl = Boolean(response?.next_page_url);
-          const hasNextByCount = parsed.currentPage < parsed.lastPage;
-          shouldContinue = hasNextByUrl || hasNextByCount;
-          page += 1;
-        }
-
-        if (requestId === latestSearchRequestId.value) {
-          userView.value = Array.from(new Map(users.map((user) => [user.id, user])).values()).slice(0, targetLimit);
-        }
-      } catch (error) {
-        console.error('Error fetching user data:', error);
-
-        if (requestId === latestSearchRequestId.value) {
-          userView.value = [];
-        }
-      }
-    };
-
-    const startCall = async (toId) => {
-      if (!toId) {
-        return
-      }
-
-      await ensurePeerConnection()
-      if (!pc.value) {
-        return
-      }
-
-      partnerId.value = toId
-      callStartedAt.value = new Date().toISOString()
-      outgoingCall.value = {
-        toId,
-        status: 'Ringing',
-      }
-      showOutgoingCallModal.value = true
-
-      try {
-        const offer = await pc.value.createOffer()
-        await pc.value.setLocalDescription(offer)
-        await CallService.startCall(toId, offer?.toJSON ? offer.toJSON() : offer)
-        await CallService.saveCallHistory({
-          user_id: toId,
-          direction: 'outgoing',
-          status: 'started',
-          started_at: callStartedAt.value,
-        })
-        await loadCallHistoryForUser(toId)
-        outgoingCall.value = {
-          toId,
-          status: 'Waiting for answer',
-        }
-      } catch (error) {
-        console.error('Call start failed:', error?.response?.data || error?.message || error)
-        await CallService.saveCallHistory({
-          user_id: toId,
-          direction: 'outgoing',
-          status: 'failed',
-          started_at: callStartedAt.value,
-          ended_at: new Date().toISOString(),
-        })
-        clearOutgoingCallState()
-        clearCallSessionState()
-        teardownPeerConnection()
-      }
-    }
-
-    const endCurrentCall = async () => {
-      if (!partnerId.value) {
-        return
-      }
-
-      const activePartnerId = partnerId.value
-      const endedAt = new Date().toISOString()
-      const durationSeconds = callStartedAt.value
-        ? Math.max(0, Math.floor((new Date(endedAt).getTime() - new Date(callStartedAt.value).getTime()) / 1000))
-        : 0
-
-      try {
-        await CallService.endCall(activePartnerId)
-      } catch (error) {
-        console.warn('Call end request failed:', error?.response?.data || error?.message || error)
-      }
-
-      await CallService.saveCallHistory({
-        user_id: activePartnerId,
-        direction: 'outgoing',
-        status: 'ended',
-        started_at: callStartedAt.value || endedAt,
-        ended_at: endedAt,
-        duration_seconds: durationSeconds,
-      })
-
-      clearCallSessionState()
-      teardownPeerConnection()
-
-      if (selectedUser.value?.id) {
-        const items = await loadCallHistoryForUser(selectedUser.value.id)
-        if (items.length) {
-          openCallHistoryDetails(items[0])
-        }
-      }
-    }
-
-    const clearIncomingCallTimer = () => {
-      if (incomingCallTimeoutId.value) {
-        clearTimeout(incomingCallTimeoutId.value)
-        incomingCallTimeoutId.value = null
-      }
-    }
-
-    const clearIncomingCallState = () => {
-      showIncomingCallModal.value = false
-      incomingCall.value = null
-      isCallActionPending.value = false
-      clearIncomingCallTimer()
-    }
-
-    const clearOutgoingCallState = () => {
-      showOutgoingCallModal.value = false
-      outgoingCall.value = null
-    }
-
-    const rejectIncomingCall = async (status = 'rejected') => {
-      if (!incomingCall.value || isCallActionPending.value) {
-        return
-      }
-
-      isCallActionPending.value = true
-      const fromId = incomingCall.value.fromId
-      const startedAt = incomingCall.value.startedAt || new Date().toISOString()
-      const endedAt = new Date().toISOString()
-
-      try {
-        await CallService.endCall(fromId)
-      } catch (error) {
-        console.warn('Call reject request failed:', error?.response?.data || error?.message || error)
-      }
-
-      await CallService.saveCallHistory({
-        user_id: fromId,
-        direction: 'incoming',
-        status,
-        started_at: startedAt,
-        ended_at: endedAt,
-      })
-
-      clearIncomingCallState()
-
-      if (selectedUser.value && sameUserId(selectedUser.value.id, fromId)) {
-        await loadCallHistoryForUser(fromId)
-      }
-
-      teardownPeerConnection()
-    }
-
-    const acceptIncomingCall = async () => {
-      if (!incomingCall.value || isCallActionPending.value) {
-        return
-      }
-
-      isCallActionPending.value = true
-
-      const fromId = incomingCall.value.fromId
-      const offer = incomingCall.value.offer
-      const startedAt = incomingCall.value.startedAt || new Date().toISOString()
-      partnerId.value = fromId
-      callStartedAt.value = startedAt
-
-      try {
-        await ensurePeerConnection()
-        if (!pc.value) {
-          isCallActionPending.value = false
-          clearIncomingCallState()
-          return
-        }
-
-        await pc.value.setRemoteDescription(new RTCSessionDescription(offer))
-        if (pendingIceCandidates.value.length) {
-          for (const candidate of pendingIceCandidates.value.splice(0)) {
-            try {
-              await pc.value.addIceCandidate(candidate)
-            } catch (iceError) {
-              console.warn('Failed to apply queued ICE candidate:', iceError)
-            }
-          }
-        }
-        const answer = await pc.value.createAnswer()
-        await pc.value.setLocalDescription(answer)
-        await CallService.answerCall(fromId, answer?.toJSON ? answer.toJSON() : answer)
-
-        await CallService.saveCallHistory({
-          user_id: fromId,
-          direction: 'incoming',
-          status: 'answered',
-          started_at: startedAt,
-        })
-
-        clearIncomingCallState()
-
-        if (selectedUser.value && sameUserId(selectedUser.value.id, fromId)) {
-          await loadCallHistoryForUser(fromId)
-        }
-      } catch (error) {
-        console.error('Incoming call handling failed:', error?.response?.data || error?.message || error)
-
-        await CallService.saveCallHistory({
-          user_id: fromId,
-          direction: 'incoming',
-          status: 'failed',
-          started_at: startedAt,
-          ended_at: new Date().toISOString(),
-        })
-
-        clearIncomingCallState()
-        callStartedAt.value = null
-        partnerId.value = null
-        teardownPeerConnection()
-      }
-    }
-
-    const loadCallHistoryForUser = async (targetUserId) => {
-      if (!targetUserId) {
-        selectedCallHistory.value = []
-        return []
-      }
-
-      try {
-        const items = await CallService.getCallHistory(targetUserId)
-        selectedCallHistory.value = items
-        return items
-      } catch {
-        selectedCallHistory.value = []
-        return []
-      }
-    }
-
-    const fetchUserId = async () => {
-      try {
-        const response = await allService.getUser();
-        if (response && response.user && response.user.id) {
-          currentUserId.value = response.user.id;
-          currentUserName.value = response.user.name;
-          currentUserPhoto.value = getUserPhoto(response.user);
-          loadSettings();
-          loadKnownChatUsers();
-          await loadGroups();
-        } else {
-          console.warn("No user ID found in response.");
-        }
-      } catch (error) {
-        console.error("Error fetching user:", error);
-        if (error?.response?.status === 401) {
-          localStorage.removeItem('token');
-          router.push('/');
-        }
-      }
-    };
-
-    const userId = async (id) => {
-      if (isGroupConversation({ id, type: typeof id === 'string' && id.startsWith('group-') ? 'group' : undefined })) {
-        return null
-      }
-
-      const numericId = Number(id)
-      if (!Number.isFinite(numericId)) {
-        return null
-      }
-
-      try {
-        const response = await allService.getUserProfile(numericId);
-        const profile = response?.user || response?.data || response;
-        if (profile && profile.id) {
-          return profile;
-        }
-
-        console.warn("No user ID found in response.");
-        return null;
-      } catch (error) {
-        console.error("Error fetching user:", error);
-        return null;
-      }
-    };
-
-    const closeUserDetails = () => {
-      showUserDetails.value = false
-      userDetailsError.value = ''
-    }
-
-    const formatProfileDate = (value) => {
-      if (!value) {
-        return ''
-      }
-
-      const parsed = new Date(value)
-      if (Number.isNaN(parsed.getTime())) {
-        return ''
-      }
-
-      return parsed.toLocaleDateString([], { month: 'short', day: '2-digit', year: 'numeric' })
-    }
-
-    const getUserLastSeenValue = (user) => {
-      if (!user) {
-        return ''
-      }
-
-      return (
-        user.last_seen_at ||
-        user.lastSeenAt ||
-        user.last_seen ||
-        user.lastSeen ||
-        user.last_active_at ||
-        user.lastActiveAt ||
-        user.updated_at ||
-        user.updatedAt ||
-        ''
-      )
-    }
-
-    const isUserOnline = (user) => {
-      const status = user?.status
-      return Boolean(
-        user?.is_online === true ||
-        user?.online === true ||
-        user?.isOnline === true ||
-        status === 'online' ||
-        status === 'active'
-      )
-    }
-
-    const formatLastSeenDateOrTime = (value) => {
-      if (!value) {
-        return ''
-      }
-
-      const parsed = new Date(value)
-      if (Number.isNaN(parsed.getTime())) {
-        return ''
-      }
-
-      const datePart = parsed.toLocaleDateString([], { month: 'short', day: '2-digit', year: 'numeric' })
-      const timePart = parsed.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-      return `${datePart} ${timePart}`
-    }
-
-    const getUserPresenceText = (user) => {
-      if (isUserOnline(user)) {
-        return 'Online'
-      }
-
-      const lastSeenValue = getUserLastSeenValue(user)
-      const formatted = formatLastSeenDateOrTime(lastSeenValue)
-      return formatted ? `Last seen ${formatted}` : 'Offline'
-    }
-
-    const parseGroupMembers = (members) => {
-      if (Array.isArray(members)) {
-        return members
-      }
-
-      if (typeof members === 'string' && members.trim()) {
-        try {
-          const parsed = JSON.parse(members)
-          return Array.isArray(parsed) ? parsed : []
-        } catch {
-          return []
-        }
-      }
-
-      return []
-    }
-
-    const normalizeMessagePayload = (payload, fallback = {}) => {
-      const source = typeof payload?.message === 'object' && payload.message !== null ? payload.message : payload;
-      const attachmentSource = source?.attachment || source?.file || source?.media || fallback?.attachment || null;
-
-      return {
-        id: source?.id ?? source?.message_id ?? fallback?.id ?? null,
-        from_id: source?.from_id ?? source?.sender_id ?? source?.user_id ?? fallback?.from_id ?? null,
-        to_id: source?.to_id ?? source?.receiver_id ?? fallback?.to_id ?? null,
-        group_id: source?.group_id ?? source?.groupId ?? fallback?.group_id ?? null,
-        group_name: source?.group_name ?? source?.groupName ?? fallback?.group_name ?? '',
-        group_members: parseGroupMembers(source?.group_members ?? source?.members ?? fallback?.group_members ?? fallback?.members),
-        conversation_type: source?.conversation_type ?? source?.conversationType ?? fallback?.conversation_type ?? '',
-        sender_name: source?.sender_name ?? source?.from_name ?? source?.from_user_name ?? fallback?.sender_name ?? '',
-        receiver_name: source?.receiver_name ?? source?.to_name ?? source?.to_user_name ?? fallback?.receiver_name ?? '',
-        body: source?.body ?? source?.message ?? source?.text ?? fallback?.body ?? '',
-        created_at: source?.created_at ?? source?.date ?? fallback?.created_at ?? new Date().toISOString(),
-        attachment: normalizeAttachment(attachmentSource, fallback?.attachment || {}),
-        attachment_url: source?.attachment_url ?? source?.file_url ?? source?.media_url ?? fallback?.attachment_url ?? '',
-        attachment_name: source?.attachment_name ?? source?.file_name ?? source?.original_name ?? fallback?.attachment_name ?? '',
-        attachment_mime_type: source?.attachment_mime_type ?? source?.mime_type ?? fallback?.attachment_mime_type ?? '',
-        attachment_kind: source?.attachment_kind ?? fallback?.attachment_kind ?? '',
-        _optimistic: Boolean(fallback?._optimistic),
-      };
-    };
-
-    const sendGroupMessage = async () => {
-      const group = groups.value.find((item) => sameUserId(item.id, selectedUser.value?.id))
-      if (!group) {
-        return
-      }
-
-      showEmojiPicker.value = false
-
-      const text = message.value.trim()
-      const attachment = selectedAttachment.value
-      const hasAttachment = Boolean(attachment?.file)
-
-      if (!text && !hasAttachment) {
-        message.value = ''
-        return
-      }
-
-      const optimisticAttachment = hasAttachment ? {
-        url: attachment.previewUrl || '',
-        name: attachment.name,
-        mimeType: attachment.mimeType,
-        kind: attachment.kind,
-        size: attachment.size,
-      } : null
-
-      const optimisticMessage = normalizeMessagePayload({
-        id: `tmp-${Date.now()}-${Math.random().toString(36).slice(2)}`,
-        from_id: currentUserId.value,
-        to_id: group.id,
-        group_id: group.id,
-        body: text,
-        created_at: new Date().toISOString(),
-        attachment: optimisticAttachment,
-      }, { _optimistic: true, attachment: optimisticAttachment })
-
-      chat.value.messages.push(optimisticMessage)
-      message.value = ''
-
-      try {
-        const memberIds = (group.members || [])
-          .map((member) => Number(member.id))
-          .filter((id) => !sameUserId(id, currentUserId.value))
-
-        const payloadFactory = (memberId) => {
-          if (hasAttachment) {
-            const formData = new FormData()
-            formData.append('user_id', memberId)
-            formData.append('message', text)
-            formData.append('body', text)
-            formData.append('group_id', group.id)
-            formData.append('group_name', group.name)
-            formData.append('conversation_type', 'group')
-            formData.append('attachment', attachment.file)
-            formData.append('attachment_name', attachment.name)
-            formData.append('attachment_mime_type', attachment.mimeType || '')
-            formData.append('attachment_kind', attachment.kind)
-            formData.append('attachment_size', String(attachment.size || 0))
-            return formData
-          }
-
-          return {
-            user_id: memberId,
-            message: text,
-            group_id: group.id,
-            group_name: group.name,
-            conversation_type: 'group',
-          }
-        }
-
-        await Promise.all(memberIds.map((memberId) => allService.sendMessages(payloadFactory(memberId))))
-
-        const finalMessage = {
-          ...optimisticMessage,
-          _optimistic: false,
-        }
-
-        const groupIndex = groups.value.findIndex((item) => sameUserId(item.id, group.id))
-        if (groupIndex !== -1) {
-          const nextMessages = [...(groups.value[groupIndex].messages || []), finalMessage]
-          groups.value[groupIndex] = {
-            ...groups.value[groupIndex],
-            messages: nextMessages,
-          }
-          persistGroups()
-        }
-
-        chat.value.messages = chat.value.messages.map((item) => item.id === optimisticMessage.id ? finalMessage : item)
-        clearSelectedAttachment()
-      } catch (error) {
-        console.error('Group send failed:', error?.response?.data || error?.message || error)
-        chat.value.messages = chat.value.messages.filter((item) => item.id !== optimisticMessage.id)
-        message.value = text
-      }
-    };
-
-    const sendMessage = async () => {
-      if (!selectedUser.value) {
-        return;
-      }
-
-      if (isGroupConversation(selectedUser.value)) {
-        await sendGroupMessage()
-        return
-      }
-
-      showEmojiPicker.value = false
-
-      const text = message.value.trim();
-      const attachment = selectedAttachment.value
-      const hasAttachment = Boolean(attachment?.file)
-
-      if (!text && !hasAttachment) {
-        message.value = '';
-        return;
-      }
-
-      const optimisticAttachment = hasAttachment ? {
-        url: attachment.previewUrl || '',
-        name: attachment.name,
-        mimeType: attachment.mimeType,
-        kind: attachment.kind,
-        size: attachment.size,
-      } : null
-
-      const optimisticMessage = normalizeMessagePayload({
-        id: `tmp-${Date.now()}-${Math.random().toString(36).slice(2)}`,
-        from_id: currentUserId.value,
-        to_id: selectedUser.value.id,
-        body: text,
-        created_at: new Date().toISOString(),
-        attachment: optimisticAttachment,
-      }, { _optimistic: true, attachment: optimisticAttachment });
-
-      chat.value.messages.push(optimisticMessage);
-      message.value = '';
-
-      try {
-        const payload = hasAttachment
-          ? (() => {
-              const formData = new FormData()
-              formData.append('user_id', selectedUser.value.id)
-              formData.append('message', text)
-              formData.append('body', text)
-              formData.append('attachment', attachment.file)
-              formData.append('attachment_name', attachment.name)
-              formData.append('attachment_mime_type', attachment.mimeType || '')
-              formData.append('attachment_kind', attachment.kind)
-              formData.append('attachment_size', String(attachment.size || 0))
-              return formData
-            })()
-          : {
-              user_id: selectedUser.value.id,
-              message: text,
-            }
-
-        const response = await allService.sendMessages(payload)
-
-        rememberChattedUser(selectedUser.value.id)
-        clearSelectedAttachment()
-
-        const serverMessage = normalizeMessagePayload(response?.message ?? response?.data ?? response, optimisticMessage);
-
-        if (serverMessage?.body) {
-          const optimisticIndex = chat.value.messages.findIndex((item) => item._optimistic && item.id === optimisticMessage.id);
-          if (optimisticIndex !== -1) {
-            chat.value.messages.splice(optimisticIndex, 1, {
-              ...optimisticMessage,
-              ...serverMessage,
-              attachment: serverMessage.attachment || optimisticMessage.attachment,
-              _optimistic: false,
-            });
-          }
-        }
-      } catch (error) {
-        console.error('Send failed:', error?.response?.data || error?.message || error);
-        chat.value.messages = chat.value.messages.filter((item) => item.id !== optimisticMessage.id);
-        message.value = text;
-      }
-    };
-
     const selectUser = (user) => {
+      leaveGroupRealtimeChannels()
       selectedUser.value = user;
       chat.value.messages = [];
       searchQuery.value = '';
@@ -2425,10 +2521,6 @@ export default {
 
       if (!query) {
         await fetchUserData('');
-        return;
-      }
-
-      if (query.length < 2) {
         return;
       }
 
@@ -2735,7 +2827,135 @@ export default {
         : 'You'
     }
 
-    const canDownloadAttachment = (attachment) => Boolean(attachment && ['image', 'video', 'document'].includes(attachment.kind) && attachment.url)
+    const canDownloadAttachment = (attachment) => Boolean(attachment && ['image', 'video', 'audio', 'document'].includes(attachment.kind) && attachment.url)
+
+    const resolveAttachmentUrl = (attachment) => {
+      const rawUrl = (attachment?.url || '').toString().trim()
+      if (!rawUrl) {
+        return ''
+      }
+
+      if (rawUrl.startsWith('http://') || rawUrl.startsWith('https://') || rawUrl.startsWith('blob:') || rawUrl.startsWith('data:')) {
+        return rawUrl
+      }
+
+      const baseUrl = (process.env.VUE_APP_API_BASE_URL || 'http://127.0.0.1:8000').replace(/\/$/, '')
+      const normalizedPath = rawUrl.replace(/^\/+/, '')
+
+      if (normalizedPath.startsWith('storage/')) {
+        return `${baseUrl}/${normalizedPath}`
+      }
+
+      return `${baseUrl}/storage/${normalizedPath}`
+    }
+
+    const getAttachmentFilename = (attachment) => {
+      const explicitName = (attachment?.name || '').toString().trim()
+      if (explicitName) {
+        return explicitName
+      }
+
+      const fileUrl = resolveAttachmentUrl(attachment)
+      if (!fileUrl) {
+        return 'attachment'
+      }
+
+      try {
+        const pathname = new URL(fileUrl).pathname
+        const fromPath = decodeURIComponent(pathname.split('/').pop() || '').trim()
+        return fromPath || 'attachment'
+      } catch {
+        return 'attachment'
+      }
+    }
+
+    const isPreviewableAttachment = (attachment, resolvedMimeType = '') => {
+      const kind = (attachment?.kind || '').toString().toLowerCase()
+      const mimeType = (resolvedMimeType || attachment?.mimeType || '').toString().toLowerCase()
+      const fileUrl = resolveAttachmentUrl(attachment).toLowerCase()
+
+      if (kind === 'image' || kind === 'video' || kind === 'audio') {
+        return true
+      }
+
+      if (mimeType.startsWith('image/') || mimeType.startsWith('video/') || mimeType.startsWith('audio/')) {
+        return true
+      }
+
+      if (mimeType === 'application/pdf' || /\.pdf(\?|#|$)/.test(fileUrl)) {
+        return true
+      }
+
+      return false
+    }
+
+    const fetchAttachmentBlob = async (attachment) => {
+      const fileUrl = resolveAttachmentUrl(attachment)
+      if (!fileUrl) {
+        return null
+      }
+
+      const response = await allService.http.get(fileUrl, { responseType: 'blob' })
+      const blob = response?.data instanceof Blob
+        ? response.data
+        : new Blob([response?.data], { type: attachment?.mimeType || 'application/octet-stream' })
+      const dispositionName = getFilenameFromDisposition(response?.headers?.['content-disposition'])
+
+      return {
+        blob,
+        fileUrl,
+        mimeType: (blob.type || attachment?.mimeType || '').toString(),
+        filename: dispositionName || getAttachmentFilename(attachment),
+      }
+    }
+
+    const triggerBlobDownload = (blob, filename) => {
+      const blobUrl = URL.createObjectURL(blob)
+      const link = document.createElement('a')
+      link.href = blobUrl
+      link.download = filename || 'attachment'
+      link.rel = 'noopener'
+      document.body.appendChild(link)
+      link.click()
+      document.body.removeChild(link)
+      setTimeout(() => URL.revokeObjectURL(blobUrl), 1000)
+    }
+
+    const getFilenameFromDisposition = (disposition) => {
+      const value = (disposition || '').toString()
+      if (!value) {
+        return ''
+      }
+
+      const utfMatch = value.match(/filename\*=UTF-8''([^;]+)/i)
+      if (utfMatch?.[1]) {
+        try {
+          return decodeURIComponent(utfMatch[1]).trim()
+        } catch {
+          return utfMatch[1].trim()
+        }
+      }
+
+      const simpleMatch = value.match(/filename="?([^";]+)"?/i)
+      return (simpleMatch?.[1] || '').trim()
+    }
+
+    const closeImagePreview = () => {
+      if (imagePreviewUrl.value?.startsWith('blob:')) {
+        URL.revokeObjectURL(imagePreviewUrl.value)
+      }
+
+      showImagePreview.value = false
+      imagePreviewUrl.value = ''
+      imagePreviewName.value = ''
+    }
+
+    const openImagePreview = (url, name = '') => {
+      closeImagePreview()
+      imagePreviewUrl.value = url
+      imagePreviewName.value = name
+      showImagePreview.value = true
+    }
 
     const getVisibleMessageBody = (msg) => {
       const body = (msg?.body || '').toString().trim()
@@ -2766,22 +2986,144 @@ export default {
       return Boolean(getVisibleMessageBody(msg))
     }
 
-    const downloadAttachment = (attachment) => {
-      if (!canDownloadAttachment(attachment)) {
+    const viewAttachment = async (attachment) => {
+      const fileUrl = resolveAttachmentUrl(attachment)
+      if (!fileUrl) {
         return
       }
 
-      const link = document.createElement('a')
-      link.href = attachment.url
-      link.download = attachment.name || 'attachment'
-      link.rel = 'noopener'
-      document.body.appendChild(link)
-      link.click()
-      link.remove()
+      try {
+        const payload = await fetchAttachmentBlob(attachment)
+        if (!payload) {
+          return
+        }
+
+        const isImage = (payload.mimeType || '').toLowerCase().startsWith('image/') || attachment?.kind === 'image'
+        if (isImage) {
+          const previewUrl = URL.createObjectURL(payload.blob)
+          openImagePreview(previewUrl, payload.filename)
+          return
+        }
+
+        if (!isPreviewableAttachment(attachment, payload.mimeType)) {
+          triggerBlobDownload(payload.blob, payload.filename)
+          return
+        }
+
+        const previewUrl = URL.createObjectURL(payload.blob)
+        const previewWindow = window.open(previewUrl, '_blank', 'noopener,noreferrer')
+
+        if (!previewWindow) {
+          URL.revokeObjectURL(previewUrl)
+          triggerBlobDownload(payload.blob, payload.filename)
+          return
+        }
+
+        setTimeout(() => URL.revokeObjectURL(previewUrl), 60000)
+      } catch (error) {
+        console.error('View attachment failed:', error)
+        window.open(fileUrl, '_blank', 'noopener,noreferrer')
+      }
+    }
+
+    const downloadAttachment = async (attachment) => {
+      const fileUrl = resolveAttachmentUrl(attachment)
+      if (!fileUrl) {
+        return
+      }
+
+      const fallbackFilename = getAttachmentFilename(attachment)
+
+      try {
+        const payload = await fetchAttachmentBlob(attachment)
+        if (!payload) {
+          return
+        }
+
+        triggerBlobDownload(payload.blob, payload.filename || fallbackFilename)
+      } catch (error) {
+        console.error('Download attachment failed:', error)
+        const link = document.createElement('a')
+        link.href = fileUrl
+        link.download = fallbackFilename
+        link.rel = 'noopener'
+        document.body.appendChild(link)
+        link.click()
+        document.body.removeChild(link)
+      }
     }
 
     const mapRealtimeMessage = (event) => {
       return normalizeMessagePayload(event);
+    };
+
+    const pendingOutgoingMessageCounts = new Map();
+
+    const prunePendingOutgoingMessages = () => {
+      const now = Date.now();
+
+      pendingOutgoingMessageCounts.forEach((entry, key) => {
+        if (!entry || entry.expiresAt <= now || entry.count <= 0) {
+          pendingOutgoingMessageCounts.delete(key);
+        }
+      });
+    };
+
+    const buildMessageSignature = (message) => {
+      const attachment = getMessageAttachment(message);
+      const attachmentKind = attachment?.kind ?? message?.attachment_kind ?? '';
+      const attachmentName = attachment?.name ?? message?.attachment_name ?? '';
+      const attachmentUrl = attachment?.url ?? message?.attachment_url ?? '';
+      const isGroupMessage = isGroupConversation(message) || Boolean(message?.group_id);
+      const destination = isGroupMessage
+        ? `group:${String(message?.group_id ?? '')}`
+        : `user:${String(message?.to_id ?? '')}`;
+
+      return [
+        sameUserId(message?.from_id, currentUserId.value) ? 'me' : String(message?.from_id ?? ''),
+        destination,
+        String(message?.conversation_type || ''),
+        String((message?.body || '').trim()),
+        String(attachmentKind),
+        String(attachmentName),
+        String(attachmentUrl),
+      ].join('|');
+    };
+
+    const registerPendingOutgoingMessage = (message) => {
+      const signature = buildMessageSignature(message);
+      const existing = pendingOutgoingMessageCounts.get(signature);
+
+      pendingOutgoingMessageCounts.set(signature, {
+        count: (existing?.count || 0) + 1,
+        expiresAt: Date.now() + 15000,
+      });
+
+      return signature;
+    };
+
+    const clearPendingOutgoingMessage = (message) => {
+      pendingOutgoingMessageCounts.delete(buildMessageSignature(message));
+    };
+
+    const consumePendingOutgoingMessage = (message) => {
+      prunePendingOutgoingMessages();
+
+      const signature = buildMessageSignature(message);
+      const entry = pendingOutgoingMessageCounts.get(signature);
+      if (!entry?.count) {
+        return false;
+      }
+
+      entry.count -= 1;
+
+      if (entry.count <= 0) {
+        pendingOutgoingMessageCounts.delete(signature);
+      } else {
+        pendingOutgoingMessageCounts.set(signature, entry);
+      }
+
+      return true;
     };
 
     const areMessagesEqual = (first, second) => {
@@ -2789,6 +3131,13 @@ export default {
 
       if (first.id && second.id) {
         return first.id === second.id
+      }
+
+      const firstIsGroup = isGroupConversation(first) || Boolean(first.group_id)
+      const secondIsGroup = isGroupConversation(second) || Boolean(second.group_id)
+
+      if (firstIsGroup || secondIsGroup) {
+        return buildMessageSignature(first) === buildMessageSignature(second)
       }
 
       return (
@@ -2863,11 +3212,31 @@ export default {
         return;
       }
 
+      const incomingIsGroup = isGroupConversation(incoming) || Boolean(incoming?.group_id)
+
+      if (sameUserId(incoming?.from_id, currentUserId.value) && consumePendingOutgoingMessage(incoming)) {
+        const optimisticIndex = chat.value.messages.findIndex((item) =>
+          item._optimistic &&
+          sameUserId(item.from_id, incoming.from_id) &&
+          (incomingIsGroup
+            ? sameUserId(item.group_id, incoming.group_id)
+            : sameUserId(item.to_id, incoming.to_id)) &&
+          item.body === incoming.body
+        )
+
+        if (optimisticIndex !== -1) {
+          chat.value.messages.splice(optimisticIndex, 1, incoming)
+        }
+
+        return
+      }
+
       const optimisticIndex = chat.value.messages.findIndex((item) =>
         item._optimistic &&
         sameUserId(item.from_id, incoming.from_id) &&
-        sameUserId(item.to_id, incoming.to_id) &&
-        sameUserId(item.group_id, incoming.group_id) &&
+        (incomingIsGroup
+          ? sameUserId(item.group_id, incoming.group_id)
+          : sameUserId(item.to_id, incoming.to_id)) &&
         item.body === incoming.body
       );
 
@@ -2877,17 +3246,7 @@ export default {
       }
 
       const alreadyExists = chat.value.messages.some((item) => {
-        if (item.id && incoming.id) {
-          return item.id === incoming.id;
-        }
-
-        return (
-          sameUserId(item.from_id, incoming.from_id) &&
-          sameUserId(item.to_id, incoming.to_id) &&
-          sameUserId(item.group_id, incoming.group_id) &&
-          item.body === incoming.body &&
-          item.created_at === incoming.created_at
-        );
+        return areMessagesEqual(item, incoming)
       });
 
       if (!alreadyExists) {
@@ -2895,207 +3254,64 @@ export default {
       }
     };
 
-    const subscribeToRealtimeMessages = (authUserId) => {
-      if (!authUserId) {
-        return;
+    const leaveGroupRealtimeChannels = () => {
+      activeGroupChannelNames.value.forEach((channelName) => {
+        echo.leave(channelName)
+      })
+
+      if (activeGroupChannelNames.value.length) {
+        activeChannelNames.value = activeChannelNames.value.filter((channelName) => !activeGroupChannelNames.value.includes(channelName))
       }
 
-      activeChannelNames.value.forEach((channelName) => {
-        echo.leave(channelName);
-      });
-
-      // Server authorizes only chat.{currentUserId} private channels.
-      const channelName = `chat.${authUserId}`;
-      activeChannelNames.value = [channelName];
-
-      const handleRealtimeEvent = (event) => {
-        const incoming = mapRealtimeMessage(event);
-
-        if (isGroupConversation(incoming)) {
-          upsertGroupFromIncomingMessage(incoming)
-
-          const isCurrentGroupConversation =
-            selectedUser.value &&
-            isGroupConversation(selectedUser.value) &&
-            sameUserId(selectedUser.value.id, incoming.group_id)
-
-          if (isCurrentGroupConversation) {
-            appendMessage(incoming)
-          }
-
-          return
-        }
-
-        const isCurrentConversation =
-          selectedUser.value &&
-          isMessageBetweenUsers(incoming, currentUserId.value, selectedUser.value.id);
-
-        if (isCurrentConversation) {
-          const otherUserId = sameUserId(incoming.from_id, currentUserId.value) ? incoming.to_id : incoming.from_id
-          rememberChattedUser(otherUserId)
-          appendMessage(incoming);
-        }
-      };
-
-      echo.private(channelName)
-          .listen('.chat.message', handleRealtimeEvent)
-          .error(err => console.error('Echo private error:', err));
-    };
-
-    const toRTCDescription = (payload, fallbackType) => {
-      if (!payload) {
-        return null
-      }
-
-      if (typeof payload === 'string') {
-        return { type: fallbackType, sdp: payload }
-      }
-
-      if (payload.type && payload.sdp) {
-        return payload
-      }
-
-      if (payload.sdp) {
-        return { type: fallbackType, sdp: payload.sdp }
-      }
-
-      return null
+      activeGroupChannelNames.value = []
     }
 
-    const subscribeToCallEvents = (authUserId) => {
-      if (!authUserId) {
+    const subscribeToGroupRealtimeMessages = (groupId) => {
+      if (!groupId) {
         return
       }
 
-      const channelName = `call.${authUserId}`
-      if (!activeChannelNames.value.includes(channelName)) {
-        activeChannelNames.value = [...activeChannelNames.value, channelName]
+      leaveGroupRealtimeChannels()
+
+      const channelNames = [`group.${groupId}`, `groups.${groupId}`]
+      activeGroupChannelNames.value = channelNames
+
+      const handleGroupRealtimeEvent = (event) => {
+        const incoming = normalizeMessagePayload(event, {
+          group_id: groupId,
+          conversation_type: 'group',
+        })
+
+        if (!sameUserId(incoming.group_id, groupId) && !sameUserId(incoming.to_id, groupId)) {
+          return
+        }
+
+        const normalizedIncoming = {
+          ...incoming,
+          group_id: incoming.group_id || groupId,
+          conversation_type: 'group',
+        }
+
+        upsertGroupFromIncomingMessage(normalizedIncoming)
+
+        if (selectedUser.value && isGroupConversation(selectedUser.value) && sameUserId(selectedUser.value.id, groupId)) {
+          appendMessage(normalizedIncoming)
+        }
       }
 
-      echo.private(channelName)
-        .listen('.call.answered', async (event) => {
-          const answer = toRTCDescription(event?.answer || event?.sdp || event?.data?.answer || event?.data?.sdp, 'answer')
-          if (!answer || !pc.value) {
-            return
-          }
+      channelNames.forEach((channelName) => {
+        if (!activeChannelNames.value.includes(channelName)) {
+          activeChannelNames.value.push(channelName)
+        }
 
-          try {
-            await pc.value.setRemoteDescription(new RTCSessionDescription(answer))
-            showOutgoingCallModal.value = true
-            outgoingCall.value = {
-              toId: event?.fromId || event?.from_id || partnerId.value,
-              status: 'Connected',
-            }
-
-            if (pendingIceCandidates.value.length) {
-              for (const candidate of pendingIceCandidates.value.splice(0)) {
-                try {
-                  await pc.value.addIceCandidate(candidate)
-                } catch (iceError) {
-                  console.warn('Failed to apply queued ICE candidate:', iceError)
-                }
-              }
-            }
-          } catch (error) {
-            console.warn('Failed to apply answered call:', error)
-          }
-        })
-        .listen('.answer.call', async (event) => {
-          const answer = toRTCDescription(event?.answer || event?.sdp || event?.data?.answer || event?.data?.sdp, 'answer')
-          if (!answer || !pc.value) {
-            return
-          }
-
-          try {
-            await pc.value.setRemoteDescription(new RTCSessionDescription(answer))
-            showOutgoingCallModal.value = true
-            outgoingCall.value = {
-              toId: event?.fromId || event?.from_id || partnerId.value,
-              status: 'Connected',
-            }
-          } catch (error) {
-            console.warn('Failed to apply call answer:', error)
-          }
-        })
-        .listen('.incoming.call', async (event) => {
-          const fromId = event?.fromId || event?.from_id
-          const offer = toRTCDescription(event?.offer || event?.sdp, 'offer')
-          if (!fromId || !offer) {
-            return
-          }
-
-          if (incomingCall.value && !sameUserId(incomingCall.value.fromId, fromId)) {
-            await CallService.saveCallHistory({
-              user_id: fromId,
-              direction: 'incoming',
-              status: 'busy',
-              started_at: new Date().toISOString(),
-              ended_at: new Date().toISOString(),
-            })
-            return
-          }
-
-          incomingCall.value = {
-            fromId,
-            offer,
-            startedAt: new Date().toISOString(),
-          }
-          showIncomingCallModal.value = true
-          isCallActionPending.value = false
-          clearIncomingCallTimer()
-
-          incomingCallTimeoutId.value = setTimeout(() => {
-            rejectIncomingCall('missed')
-          }, 30000)
-        })
-        .listen('.ice.candidate', async (event) => {
-          if (!event?.candidate || !pc.value) {
-            return
-          }
-
-          try {
-            if (!pc.value.remoteDescription) {
-              pendingIceCandidates.value.push(event.candidate)
-              return
-            }
-
-            await pc.value.addIceCandidate(event.candidate)
-          } catch (error) {
-            console.warn('Failed to apply ICE candidate:', error)
-          }
-        })
-        .listen('.call.ended', async (event) => {
-          const endedBy = event?.fromId || event?.from_id || partnerId.value
-          if (!endedBy) {
-            return
-          }
-
-          const endedAt = new Date().toISOString()
-          const durationSeconds = callStartedAt.value
-            ? Math.max(0, Math.floor((new Date(endedAt).getTime() - new Date(callStartedAt.value).getTime()) / 1000))
-            : 0
-
-          await CallService.saveCallHistory({
-            user_id: endedBy,
-            direction: 'incoming',
-            status: 'ended',
-            started_at: callStartedAt.value || endedAt,
-            ended_at: endedAt,
-            duration_seconds: durationSeconds,
+        const privateChannel = echo.private(channelName)
+        ;['.chat.message', 'chat.message', '.group.message', 'group.message', '.group.message.sent', 'group.message.sent', '.message.sent', 'message.sent', '.my-event', 'my-event']
+          .forEach((eventName) => {
+            privateChannel.listen(eventName, handleGroupRealtimeEvent)
           })
 
-          if (selectedUser.value && sameUserId(selectedUser.value.id, endedBy)) {
-            const items = await loadCallHistoryForUser(endedBy)
-            if (items.length) {
-              openCallHistoryDetails(items[0])
-            }
-          }
-
-          clearCallSessionState()
-          teardownPeerConnection()
-          pendingIceCandidates.value = []
-        })
-        .error((err) => console.error('Echo call private error:', err))
+        privateChannel.error(err => console.error('Echo group private error:', err))
+      })
     }
 
     const initWebRTC = async () => {
@@ -3191,6 +3407,8 @@ export default {
         URL.revokeObjectURL(profilePreviewUrl.value)
       }
 
+      closeImagePreview()
+
       clearSelectedAttachment()
       clearIncomingCallTimer()
       teardownPeerConnection()
@@ -3235,6 +3453,8 @@ export default {
       availableUsersForGroup,
       visibleGroups,
       editingGroupId,
+      groupFormError,
+      groupFormSubmitting,
       incomingCallDisplayName,
       incomingCallerPhoto,
       outgoingCallDisplayName,
@@ -3242,6 +3462,9 @@ export default {
       isCallActionPending,
       attachmentInput,
       selectedAttachment,
+      showImagePreview,
+      imagePreviewUrl,
+      imagePreviewName,
       isUserDetailsLoading,
       userDetails,
       userDetailsError,
@@ -3319,6 +3542,8 @@ export default {
       getMessageSenderName,
       getMessageReceiverName,
       canDownloadAttachment,
+      closeImagePreview,
+      viewAttachment,
       downloadAttachment,
       isGroupConversation,
       partnerId,
@@ -3463,10 +3688,37 @@ html, body {
 }
 
 
-.chat-attachment-download {
-  margin-top: 6px;
-  padding: 2px 8px;
-  font-size: 0.72rem;
+.attachment-container {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.attachment-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.attachment-actions .btn {
+  padding: 4px 12px;
+  font-size: 0.75rem;
+}
+
+.attachment-actions .btn:hover {
+  background-color: rgba(255, 255, 255, 0.2);
+}
+
+.document-preview {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  word-break: break-word;
+}
+
+.document-name {
+  font-size: 0.9rem;
+  font-weight: 500;
 }
 
 .chat-attachment-image,
@@ -3475,6 +3727,38 @@ html, body {
   height: 150px;
   object-fit: cover;
   display: block;
+  border-radius: 8px;
+}
+
+.image-preview-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 13000;
+  background: rgba(7, 17, 30, 0.92);
+  display: flex;
+  flex-direction: column;
+}
+
+.image-preview-toolbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px 16px;
+}
+
+.image-preview-stage {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 12px;
+}
+
+.image-preview-full {
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
   border-radius: 8px;
 }
 

@@ -1,7 +1,7 @@
 <template>
   <div class="login-container">
     <div class="login-card">
-      <div class="logo">Chatrio</div>
+      <div class="logo">Skytalk</div>
 
       <h1 class="title">Login</h1>
 

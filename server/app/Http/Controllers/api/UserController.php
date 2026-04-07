@@ -79,6 +79,15 @@ class UserController extends Controller
 
     public function updateProfile(Request $request)
     {
+        if (!$request->hasFile('image')) {
+            foreach (['profile_image', 'avatar', 'photo'] as $fileKey) {
+                if ($request->hasFile($fileKey)) {
+                    $request->files->set('image', $request->file($fileKey));
+                    break;
+                }
+            }
+        }
+
         if ($request->hasFile('image') && !$request->file('image')->isValid()) {
             return response()->json([
                 'message' => 'The image failed to upload.',
@@ -90,7 +99,11 @@ class UserController extends Controller
 
         $request->validate([
             'name' => 'required|string|min:2|max:255',
-            'image' => 'nullable|image|max:2048',
+            'phone' => 'nullable|string|max:30',
+            'address' => 'nullable|string|max:255',
+            'city' => 'nullable|string|max:100',
+            'country' => 'nullable|string|max:100',
+            'image' => 'nullable|file|mimetypes:image/jpeg,image/png,image/gif,image/webp,image/bmp,image/svg+xml|max:10240',
         ]);
 
         $user = $request->user();
@@ -104,6 +117,10 @@ class UserController extends Controller
         }
 
         $user->name = $request->input('name');
+        $user->phone = $request->filled('phone') ? trim((string) $request->input('phone')) : null;
+        $user->address = $request->filled('address') ? trim((string) $request->input('address')) : null;
+        $user->city = $request->filled('city') ? trim((string) $request->input('city')) : null;
+        $user->country = $request->filled('country') ? trim((string) $request->input('country')) : null;
         $user->save();
 
         return response()->json([

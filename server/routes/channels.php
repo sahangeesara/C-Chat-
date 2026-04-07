@@ -1,5 +1,6 @@
 <?php
 
+use App\Models\GroupMember;
 use App\Models\User;
 use Illuminate\Support\Facades\Broadcast;
 
@@ -27,3 +28,11 @@ Broadcast::channel('presence-online', function (User $user) {
 Broadcast::channel('call.{userId}', function ($user, $userId) {
     return (int) $user->id === (int) $userId;
 });
+
+Broadcast::channel('group.{groupId}', function ($user, $groupId) {
+    return GroupMember::query()
+        ->where('group_id', (int) $groupId)
+        ->where('user_id', (int) $user->id)
+        ->exists();
+});
+

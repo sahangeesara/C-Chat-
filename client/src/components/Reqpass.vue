@@ -1,7 +1,7 @@
 <template>
   <div class="auth-container">
     <div class="auth-card auth-card-wide">
-      <div class="logo">Chatrio</div>
+      <div class="logo">Skytalk</div>
 
       <h1 class="title">Request Password Reset</h1>
 
@@ -190,5 +190,3 @@ export default {
           background-color: #d7ebff;
         }
         </style>
-
-  
