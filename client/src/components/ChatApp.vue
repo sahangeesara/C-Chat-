@@ -189,7 +189,7 @@
             >
               <i class="bi bi-clock-history"></i>
             </button>
-            <button v-if="!isGroupConversation(selectedUser)" class="btn btn-sm btn-outline-primary">
+            <button v-if="!isGroupConversation(selectedUser)" class="btn btn-sm btn-outline-primary" @click="startVideoCall(selectedUser.id)">
               <i class="bi bi-camera-video"></i>
             </button>
             <button v-if="!isGroupConversation(selectedUser)" class="btn btn-sm btn-outline-primary" @click="startCall(selectedUser.id)">
@@ -653,9 +653,11 @@
         </div>
       </div>
 
-      <audio ref="remoteAudio" autoplay style="display: none;"></audio>
+      <audio ref="remoteAudio" autoplay playsinline style="display: none;"></audio>
+      <video ref="remoteVideo" autoplay playsinline style="display: none;"></video>
+      <video ref="localVideo" autoplay muted playsinline style="display: none;"></video>
     </div>
-  </div>
+    </div>
 
   <div v-if="showImagePreview" class="image-preview-overlay" @click.self="closeImagePreview">
     <div class="image-preview-toolbar">
@@ -906,6 +908,8 @@ export default {
     const localAudioStream = ref(null)
     const partnerId = ref(null)
     const remoteAudio = ref(null)
+    const remoteVideo = ref(null)
+    const localVideo = ref(null)
     const callStartedAt = ref(null)
     const selectedCallHistory = ref([])
     const showIncomingCallModal = ref(false)
@@ -925,6 +929,7 @@ export default {
     const previewAttachmentKind = ref('image')
     const activeChannelNames = ref([])
     const activeGroupChannelNames = ref([])
+    const activeCallChannelNames = ref([])
     const knownChatUserIds = ref([])
     const latestProfileRequestId = ref(0)
     const pendingIceCandidates = ref([])
@@ -1128,6 +1133,57 @@ export default {
       }
     }
 
+    const playMediaElement = async (element) => {
+      if (!element || typeof element.play !== 'function') {
+        return
+      }
+
+      try {
+        await element.play()
+      } catch (error) {
+        // Chrome can block autoplay until user gesture; the stream is still attached.
+        console.warn('Media autoplay was blocked by browser policy:', error)
+      }
+    }
+
+    const updateLocalPreview = () => {
+      if (localVideo.value) {
+        localVideo.value.srcObject = localAudioStream.value || null
+        playMediaElement(localVideo.value)
+      }
+    }
+
+    const streamHasVideo = (stream) => Array.isArray(stream?.getVideoTracks?.()) && stream.getVideoTracks().length > 0
+
+    const requestLocalMediaStream = async (callType = 'audio') => {
+      const wantsVideo = safeCallType(callType) === 'video'
+
+      if (!navigator.mediaDevices?.getUserMedia) {
+        throw new Error('Media devices API is not available in this browser.')
+      }
+
+      const constraints = wantsVideo
+        ? { audio: true, video: { facingMode: 'user' } }
+        : { audio: true, video: false }
+
+      return navigator.mediaDevices.getUserMedia(constraints)
+    }
+
+    const syncConnectionTracks = async (connection, stream) => {
+      if (!connection || !stream) {
+        return
+      }
+
+      for (const track of stream.getTracks()) {
+        const sender = connection.getSenders?.().find((item) => item.track?.kind === track.kind)
+        if (sender) {
+          await sender.replaceTrack(track)
+        } else {
+          connection.addTrack(track, stream)
+        }
+      }
+    }
+
     const setupPeerConnection = () => {
       if (pc.value) return pc.value
 
@@ -1136,8 +1192,19 @@ export default {
       })
 
       connection.ontrack = (e) => {
+        const remoteStream = e.streams?.[0]
+        if (!remoteStream) {
+          return
+        }
+
         if (remoteAudio.value) {
-          remoteAudio.value.srcObject = e.streams[0]
+          remoteAudio.value.srcObject = remoteStream
+          playMediaElement(remoteAudio.value)
+        }
+
+        if (remoteVideo.value && streamHasVideo(remoteStream)) {
+          remoteVideo.value.srcObject = remoteStream
+          playMediaElement(remoteVideo.value)
         }
       }
 
@@ -1151,21 +1218,37 @@ export default {
       return connection
     }
 
-    const ensurePeerConnection = async () => {
+    const ensurePeerConnection = async (options = {}) => {
+      const callType = safeCallType(options?.callType)
       const connection = setupPeerConnection()
 
-      if (!localAudioStream.value) {
+      const requiresVideoTrack = callType === 'video'
+      const hasLocalStream = Boolean(localAudioStream.value)
+      const hasLocalVideo = hasLocalStream && streamHasVideo(localAudioStream.value)
+
+      if (!hasLocalStream || (requiresVideoTrack && !hasLocalVideo)) {
         try {
-          localAudioStream.value = await navigator.mediaDevices.getUserMedia({ audio: true })
+          const freshStream = await requestLocalMediaStream(callType)
+
+          if (localAudioStream.value) {
+            localAudioStream.value.getTracks().forEach((track) => track.stop())
+          }
+
+          localAudioStream.value = freshStream
+          updateLocalPreview()
         } catch (error) {
-          console.warn('Unable to access microphone:', error)
+          console.warn(`Unable to access ${requiresVideoTrack ? 'camera/microphone' : 'microphone'}:`, error)
           return null
         }
       }
 
-      const hasAudioTrack = connection.getSenders?.().some((sender) => sender.track?.kind === 'audio')
-      if (!hasAudioTrack && localAudioStream.value) {
-        localAudioStream.value.getTracks().forEach((track) => connection.addTrack(track, localAudioStream.value))
+      if (localAudioStream.value) {
+        try {
+          await syncConnectionTracks(connection, localAudioStream.value)
+        } catch (error) {
+          console.warn('Unable to attach local media tracks:', error)
+          return null
+        }
       }
 
       return connection
@@ -1176,11 +1259,19 @@ export default {
         remoteAudio.value.srcObject = null
       }
 
+      if (remoteVideo.value) {
+        remoteVideo.value.srcObject = null
+      }
+
+      if (localVideo.value) {
+        localVideo.value.srcObject = null
+      }
+
       if (pc.value) {
         try {
           pc.value.ontrack = null
           pc.value.onicecandidate = null
-          pc.value.getSenders?.().forEach((sender) => {
+          pc.value.getSenders?.forEach((sender) => {
             try {
               sender.track?.stop?.()
             } catch {
@@ -2643,37 +2734,437 @@ export default {
       }
     }
 
-    const startCall = async (toId) => {
-      partnerId.value = toId || null
-      console.warn('Call start placeholder: verify backend call signaling endpoints.')
+    const safeCallType = (value) => (value === 'video' ? 'video' : 'audio')
+
+    const inferCallTypeFromDescription = (description) => {
+      const normalized = toSessionDescription(description, 'offer')
+      if (!normalized?.sdp) {
+        return 'audio'
+      }
+
+      return /m=video/i.test(normalized.sdp) ? 'video' : 'audio'
     }
 
-    const startVideoCall = async (toId) => {
-      await startCall(toId)
+    const readSignalCandidate = (signal) => signal?.candidate || signal?.ice || signal?.iceCandidate || null
+
+    const readSignalDescription = (signal, key) => {
+      const fromKey = signal?.[key]
+      if (fromKey && typeof fromKey === 'object') {
+        return fromKey
+      }
+
+      if (typeof fromKey === 'string' && fromKey.trim()) {
+        return {
+          type: key,
+          sdp: fromKey,
+        }
+      }
+
+      const nested = signal?.data?.[key] || signal?.payload?.[key]
+      if (nested && typeof nested === 'object') {
+        return nested
+      }
+
+      if (typeof nested === 'string' && nested.trim()) {
+        return {
+          type: key,
+          sdp: nested,
+        }
+      }
+
+      const fallback = key === 'offer' ? signal?.sdp_offer : signal?.sdp_answer
+      if (fallback && typeof fallback === 'object') {
+        return fallback
+      }
+
+      const sdp = signal?.sdp
+      if (typeof sdp === 'string' && sdp.trim()) {
+        return {
+          type: key,
+          sdp,
+        }
+      }
+
+      return null
     }
 
-    const endCurrentCall = async () => {
-      const activeId = partnerId.value
-      partnerId.value = null
-      if (!activeId) return
-      try {
-        await CallService.endCall(activeId)
-      } catch {
-        // no-op fallback
+    const readSignalUserId = (signal, keys = []) => {
+      for (const key of keys) {
+        const value = signal?.[key]
+        if (value !== undefined && value !== null && value !== '') {
+          return value
+        }
+      }
+      return null
+    }
+
+    const toSessionDescription = (description, fallbackType) => {
+      if (!description) {
+        return null
+      }
+
+      if (description instanceof RTCSessionDescription) {
+        return description
+      }
+
+      if (description?.type && description?.sdp) {
+        return new RTCSessionDescription({ type: description.type, sdp: description.sdp })
+      }
+
+      if (typeof description === 'string' && description.trim()) {
+        return new RTCSessionDescription({ type: fallbackType, sdp: description })
+      }
+
+      return null
+    }
+
+    const buildCallHistoryEntry = ({ peerId = null, direction = 'outgoing', status = 'ended', startedAt = null, endedAt = null, meta = {} } = {}) => {
+      const startValue = startedAt || callStartedAt.value || new Date().toISOString()
+      const endValue = endedAt || new Date().toISOString()
+      const startTime = new Date(startValue).getTime()
+      const endTime = new Date(endValue).getTime()
+      const durationSeconds = Number.isFinite(startTime) && Number.isFinite(endTime) && endTime > startTime
+        ? Math.round((endTime - startTime) / 1000)
+        : 0
+
+      return {
+        user_id: peerId,
+        direction,
+        status,
+        started_at: startValue,
+        ended_at: endValue,
+        duration_seconds: durationSeconds,
+        meta,
       }
     }
 
-    const rejectIncomingCall = async () => {
-      showIncomingCallModal.value = false
-      incomingCall.value = null
+    const saveCallHistoryEntry = async (entry) => {
+      try {
+        await CallService.saveCallHistory(entry)
+
+        if (selectedUser.value && !isGroupConversation(selectedUser.value)) {
+          await loadCallHistoryForUser(selectedUser.value.id)
+        }
+      } catch (error) {
+        console.warn('Unable to save call history entry:', error?.response?.data || error?.message || error)
+      }
+    }
+
+    const flushQueuedIceCandidates = async (connection) => {
+      if (!connection || !pendingIceCandidates.value.length) {
+        return
+      }
+
+      const queued = [...pendingIceCandidates.value]
+      pendingIceCandidates.value = []
+
+      for (const candidate of queued) {
+        try {
+          await connection.addIceCandidate(new RTCIceCandidate(candidate))
+        } catch (error) {
+          console.warn('Failed to apply queued ICE candidate:', error)
+        }
+      }
+    }
+
+    const handleCallIncomingSignal = async (payload = {}) => {
+      const fromId = readSignalUserId(payload, ['from_id', 'fromId', 'user_id', 'sender_id', 'caller_id', 'peer_id'])
+      const offer = readSignalDescription(payload, 'offer')
+      if (!fromId || !offer) {
+        return
+      }
+
+      incomingCall.value = {
+        ...payload,
+        fromId,
+        offer,
+        callType: safeCallType(payload?.call_type || payload?.type_hint || inferCallTypeFromDescription(offer)),
+      }
+
+      showIncomingCallModal.value = true
+      clearOutgoingCallState()
+      clearIncomingCallTimer()
+
+      incomingCallTimeoutId.value = setTimeout(() => {
+        if (showIncomingCallModal.value) {
+          rejectIncomingCall('missed')
+        }
+      }, 30000)
+    }
+
+    const handleCallAnsweredSignal = async (payload = {}) => {
+      const signalPeerId = readSignalUserId(payload, ['from_id', 'fromId', 'user_id', 'sender_id', 'caller_id', 'peer_id', 'callee_id', 'to_id', 'toId', 'receiver_id'])
+      if (signalPeerId && partnerId.value && !sameUserId(signalPeerId, partnerId.value)) {
+        return
+      }
+
+      const answer = readSignalDescription(payload, 'answer')
+      if (!answer) {
+        return
+      }
+
+      try {
+        const connection = await ensurePeerConnection({ callType: outgoingCall.value?.callType || 'audio' })
+        if (!connection) {
+          return
+        }
+
+        await connection.setRemoteDescription(toSessionDescription(answer, 'answer'))
+        await flushQueuedIceCandidates(connection)
+
+        outgoingCall.value = {
+          ...(outgoingCall.value || {}),
+          status: 'Connected',
+        }
+        showOutgoingCallModal.value = false
+      } catch (error) {
+        console.error('Failed to apply call answer:', error)
+      }
+    }
+
+    const handleCallIceSignal = async (payload = {}) => {
+      const candidate = readSignalCandidate(payload)
+      if (!candidate) {
+        return
+      }
+
+      const connection = await ensurePeerConnection({
+        callType: outgoingCall.value?.callType || incomingCall.value?.callType || 'audio',
+      })
+      if (!connection) {
+        return
+      }
+
+      if (!connection.remoteDescription?.type) {
+        pendingIceCandidates.value.push(candidate)
+        return
+      }
+
+      try {
+        await connection.addIceCandidate(new RTCIceCandidate(candidate))
+      } catch (error) {
+        console.warn('Failed to add ICE candidate:', error)
+      }
+    }
+
+    const handleCallEndedSignal = async (payload = {}) => {
+      const endedWith = readSignalUserId(payload, ['from_id', 'fromId', 'user_id', 'sender_id']) || partnerId.value
+      const status = (payload?.status || payload?.reason || 'ended').toString().toLowerCase()
+      const direction = outgoingCall.value ? 'outgoing' : 'incoming'
+
+      if (endedWith) {
+        await saveCallHistoryEntry(
+          buildCallHistoryEntry({
+            peerId: endedWith,
+            direction,
+            status,
+            meta: {
+              ended_by_remote: true,
+            },
+          })
+        )
+      }
+
+      clearCallSessionState()
+      teardownPeerConnection()
+      pendingIceCandidates.value = []
+    }
+
+    const startCall = async (toId, options = {}) => {
+      if (!toId) {
+        return
+      }
+
+      const callType = safeCallType(options?.callType)
+
+      isCallActionPending.value = true
+      try {
+        const connection = await ensurePeerConnection({ callType })
+        if (!connection) {
+          return
+        }
+
+        partnerId.value = toId
+        callStartedAt.value = new Date().toISOString()
+        clearIncomingCallState()
+        showOutgoingCallModal.value = true
+        outgoingCall.value = {
+          toId,
+          status: 'Ringing',
+          callType,
+        }
+
+        const offer = await connection.createOffer({
+          offerToReceiveAudio: true,
+          offerToReceiveVideo: callType === 'video',
+        })
+        await connection.setLocalDescription(offer)
+
+        await CallService.startCall(toId, {
+          type: offer.type,
+          sdp: offer.sdp,
+          call_type: callType,
+        })
+      } catch (error) {
+        console.error('Unable to start call:', error?.response?.data || error?.message || error)
+        await saveCallHistoryEntry(
+          buildCallHistoryEntry({
+            peerId: toId,
+            direction: 'outgoing',
+            status: 'failed',
+            meta: { call_type: callType },
+          })
+        )
+        clearCallSessionState()
+        teardownPeerConnection()
+      } finally {
+        isCallActionPending.value = false
+      }
+    }
+
+    const startVideoCall = async (toId) => {
+      await startCall(toId, { callType: 'video' })
+    }
+
+    const endCurrentCall = async () => {
+      const activeId = partnerId.value || outgoingCall.value?.toId || incomingCall.value?.fromId || incomingCall.value?.from_id
+      const direction = outgoingCall.value ? 'outgoing' : 'incoming'
+
+      isCallActionPending.value = true
+      try {
+        if (activeId) {
+          await CallService.endCall(activeId)
+          await saveCallHistoryEntry(
+            buildCallHistoryEntry({
+              peerId: activeId,
+              direction,
+              status: 'ended',
+            })
+          )
+        }
+      } catch (error) {
+        console.warn('Unable to end call cleanly:', error?.response?.data || error?.message || error)
+      } finally {
+        clearCallSessionState()
+        teardownPeerConnection()
+        pendingIceCandidates.value = []
+        isCallActionPending.value = false
+      }
+    }
+
+    const rejectIncomingCall = async (reason = 'rejected') => {
+      const fromId = incomingCall.value?.fromId || incomingCall.value?.from_id || partnerId.value
+
+      isCallActionPending.value = true
+      try {
+        if (fromId) {
+          await CallService.endCall(fromId)
+          await saveCallHistoryEntry(
+            buildCallHistoryEntry({
+              peerId: fromId,
+              direction: 'incoming',
+              status: reason,
+            })
+          )
+        }
+      } catch (error) {
+        console.warn('Unable to reject incoming call cleanly:', error?.response?.data || error?.message || error)
+      } finally {
+        clearCallSessionState()
+        teardownPeerConnection()
+        pendingIceCandidates.value = []
+        isCallActionPending.value = false
+      }
     }
 
     const acceptIncomingCall = async () => {
-      showIncomingCallModal.value = false
+      const callPayload = incomingCall.value
+      const fromId = callPayload?.fromId || callPayload?.from_id
+      const offer = callPayload?.offer || readSignalDescription(callPayload, 'offer')
+      if (!fromId || !offer) {
+        clearIncomingCallState()
+        return
+      }
+
+      const incomingCallType = safeCallType(
+        callPayload?.callType || callPayload?.call_type || callPayload?.type_hint || inferCallTypeFromDescription(offer)
+      )
+
+      isCallActionPending.value = true
+      try {
+        clearIncomingCallTimer()
+
+        const connection = await ensurePeerConnection({ callType: incomingCallType })
+        if (!connection) {
+          return
+        }
+
+        partnerId.value = fromId
+        callStartedAt.value = new Date().toISOString()
+
+        await connection.setRemoteDescription(toSessionDescription(offer, 'offer'))
+        await flushQueuedIceCandidates(connection)
+
+        const answer = await connection.createAnswer()
+        await connection.setLocalDescription(answer)
+
+        await CallService.answerCall(fromId, {
+          type: answer.type,
+          sdp: answer.sdp,
+          call_type: incomingCallType,
+        })
+
+        outgoingCall.value = {
+          toId: fromId,
+          status: 'Connected',
+          callType: incomingCallType,
+        }
+        clearIncomingCallState()
+        showOutgoingCallModal.value = false
+      } catch (error) {
+        console.error('Unable to accept incoming call:', error?.response?.data || error?.message || error)
+        await rejectIncomingCall('failed')
+      } finally {
+        isCallActionPending.value = false
+      }
     }
 
-    const subscribeToCallEvents = () => {
-      // Keep as a safe no-op if call realtime is not configured in backend yet.
+    const subscribeToCallEvents = (authUserId) => {
+      if (!authUserId) {
+        return
+      }
+
+      activeCallChannelNames.value.forEach((channelName) => {
+        echo.leave(channelName)
+      })
+
+      const channelNames = [`call.${authUserId}`, `calls.${authUserId}`, `user.${authUserId}.call`]
+      activeCallChannelNames.value = channelNames
+
+      const bindEvents = (channel) => {
+        ;['.incoming.call', 'incoming.call', '.call.incoming', 'call.incoming', 'IncomingCall', '.IncomingCall']
+          .forEach((eventName) => channel.listen(eventName, handleCallIncomingSignal))
+
+        ;['.call.answered', 'call.answered', '.answer.call', 'answer.call', 'CallAnswered', '.CallAnswered']
+          .forEach((eventName) => channel.listen(eventName, handleCallAnsweredSignal))
+
+        ;['.ice.candidate', 'ice.candidate', '.call.ice', 'call.ice', 'CallIceCandidate', '.CallIceCandidate']
+          .forEach((eventName) => channel.listen(eventName, handleCallIceSignal))
+
+        ;['.call.ended', 'call.ended', '.end.call', 'end.call', 'CallEnded', '.CallEnded', '.call.rejected', 'call.rejected']
+          .forEach((eventName) => channel.listen(eventName, handleCallEndedSignal))
+
+        channel.error((err) => console.error('Echo call channel error:', err))
+      }
+
+      channelNames.forEach((channelName) => {
+        if (!activeChannelNames.value.includes(channelName)) {
+          activeChannelNames.value.push(channelName)
+        }
+
+        bindEvents(echo.private(channelName))
+        bindEvents(echo.channel(channelName))
+      })
     }
 
     const selectGroup = async (group) => {
@@ -3726,7 +4217,7 @@ export default {
 
     const initWebRTC = async () => {
       try {
-        await ensurePeerConnection()
+        setupPeerConnection()
       } catch (error) {
         console.warn('WebRTC init skipped:', error)
       }
@@ -3805,6 +4296,7 @@ export default {
 
     onBeforeUnmount(() => {
       activeChannelNames.value.forEach((channelName) => echo.leave(channelName));
+      activeCallChannelNames.value.forEach((channelName) => echo.leave(channelName));
 
       window.removeEventListener('resize', updateViewportMode);
 
@@ -3886,6 +4378,9 @@ export default {
       imagePreviewName,
       previewAttachmentKind,
       previewAttachment,
+      remoteAudio,
+      remoteVideo,
+      localVideo,
       isUserDetailsLoading,
       userDetails,
       userDetailsError,

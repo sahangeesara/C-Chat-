@@ -75,6 +75,7 @@ Route::middleware(['auth:api', 'last.seen'])->group(function () {
     Route::post('/call/group/signal', [CallController::class, 'groupSignal']);
     Route::post('/call/group/end', [CallController::class, 'groupEnd']);
     Route::get('/call/history', [CallController::class, 'history']);
+    Route::post('/call/history', [CallController::class, 'storeHistory']);
     Route::get('/call/{id}', [CallController::class, 'show'])->whereNumber('id');
 
 

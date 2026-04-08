@@ -82,19 +82,27 @@ class CallService {
 
     // 📞 Start call (send offer)
     startCall(toId, offer) {
+        const normalizedOffer = typeof offer === 'string' ? { type: 'offer', sdp: offer } : (offer || {})
         return this.postFirstAvailable(['/call/start', '/calls/start'], {
             to_id: toId,
-            offer: offer,
-            sdp: offer,
+            offer: normalizedOffer,
+            sdp: normalizedOffer?.sdp || '',
+            sdp_offer: normalizedOffer?.sdp || '',
+            type: normalizedOffer?.type || 'offer',
+            call_type: normalizedOffer?.call_type || normalizedOffer?.type_hint || 'audio',
         })
     }
 
     // ✅ Answer call
     answerCall(toId, answer) {
+        const normalizedAnswer = typeof answer === 'string' ? { type: 'answer', sdp: answer } : (answer || {})
         return this.postFirstAvailable(['/call/answer', '/calls/answer'], {
             to_id: toId,
-            sdp: answer,
-            answer,
+            sdp: normalizedAnswer?.sdp || '',
+            sdp_answer: normalizedAnswer?.sdp || '',
+            answer: normalizedAnswer,
+            type: normalizedAnswer?.type || 'answer',
+            call_type: normalizedAnswer?.call_type || normalizedAnswer?.type_hint || 'audio',
         })
     }
 

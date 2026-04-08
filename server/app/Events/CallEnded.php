@@ -2,31 +2,23 @@
 
 namespace App\Events;
 
-use Illuminate\Broadcasting\Channel;
 use Illuminate\Broadcasting\InteractsWithSockets;
-use Illuminate\Broadcasting\PresenceChannel;
 use Illuminate\Broadcasting\PrivateChannel;
 use Illuminate\Contracts\Broadcasting\ShouldBroadcastNow;
 use Illuminate\Foundation\Events\Dispatchable;
 use Illuminate\Queue\SerializesModels;
 
-class IncomingCall implements ShouldBroadcastNow
+class CallEnded implements ShouldBroadcastNow
 {
     use Dispatchable, InteractsWithSockets, SerializesModels;
 
-    public $fromId;
-    public $toId;
-    public $offer;
-    public $callId;
-    public $callType;
-
-    public function __construct($fromId, $toId, $offer, $callId = null, $callType = 'audio')
-    {
-        $this->fromId = $fromId;
-        $this->toId   = $toId;
-        $this->offer  = $offer;
-        $this->callId = $callId;
-        $this->callType = $callType;
+    public function __construct(
+        public int $fromId,
+        public int $toId,
+        public int $callId,
+        public string $status = 'ended',
+        public ?string $reason = null
+    ) {
     }
 
     public function broadcastOn(): PrivateChannel
@@ -36,7 +28,7 @@ class IncomingCall implements ShouldBroadcastNow
 
     public function broadcastAs(): string
     {
-        return 'incoming.call';
+        return 'call.ended';
     }
 
     public function broadcastWith(): array
@@ -44,13 +36,13 @@ class IncomingCall implements ShouldBroadcastNow
         return [
             'from_id' => $this->fromId,
             'to_id' => $this->toId,
+            'call_id' => $this->callId,
+            'status' => $this->status,
+            'reason' => $this->reason,
             'fromId' => $this->fromId,
             'toId' => $this->toId,
-            'offer' => $this->offer,
-            'call_id' => $this->callId,
             'callId' => $this->callId,
-            'call_type' => $this->callType,
-            'callType' => $this->callType,
         ];
     }
 }
+
