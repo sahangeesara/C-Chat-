@@ -72,6 +72,9 @@
 <script>
 import axios from "axios";
 import { mapActions } from "vuex";
+import { getApiOrigin } from "@/services/api-origin";
+
+const API_ORIGIN = getApiOrigin();
 
 export default {
   data() {
@@ -96,7 +99,7 @@ export default {
       this.loading = true;
 
       try {
-        const response = await axios.post("http://localhost:8000/api/signup", this.userData);
+        const response = await axios.post(`${API_ORIGIN}/api/signup`, this.userData);
         this.handleResponse(response.data);
       } catch (error) {
         this.handleError(error);

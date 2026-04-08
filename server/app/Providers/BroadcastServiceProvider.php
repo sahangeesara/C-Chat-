@@ -14,7 +14,8 @@ class BroadcastServiceProvider extends ServiceProvider
     {
         Broadcast::routes([
             'prefix' => 'api',
-            'middleware' => ['api', 'auth:api', 'last.seen'],
+            // Keep auth lightweight here; presence/last-seen updates should not block channel auth.
+            'middleware' => ['api', 'auth:api'],
         ]);
 
         require base_path('routes/channels.php');

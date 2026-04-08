@@ -88,8 +88,28 @@ class ChatController extends Controller
     {
         $attachmentFile = $this->resolveAttachmentFile($request);
 
-        if (!$request->filled('user_id') && $request->filled('to_id')) {
-            $request->merge(['user_id' => $request->to_id]);
+        // Normalize common mobile/client aliases.
+        $request->merge([
+            'user_id' => $request->input('user_id')
+                ?? $request->input('to_id')
+                ?? $request->input('toId')
+                ?? $request->input('receiver_id')
+                ?? $request->input('receiverId')
+                ?? $request->input('recipient_id')
+                ?? $request->input('recipientId'),
+        ]);
+
+        // Accept legacy/alternate recipient keys from different clients.
+        if (!$request->filled('user_id')) {
+            $fallbackToId = $request->input('to_id')
+                ?? $request->input('toId')
+                ?? $request->input('receiver_id')
+                ?? $request->input('receiverId')
+                ?? $request->input('recipient_id')
+                ?? $request->input('recipientId');
+            if ($fallbackToId !== null && $fallbackToId !== '') {
+                $request->merge(['user_id' => $fallbackToId]);
+            }
         }
 
         if (!$request->filled('group_id') && $request->filled('user_id')) {
@@ -102,7 +122,16 @@ class ChatController extends Controller
             }
         }
 
-        $messageBody = trim((string) ($request->input('message') ?? $request->input('body', '')));
+        // Accept common message keys used by web/mobile clients.
+        $messageBody = trim((string) (
+            $request->input('message')
+                ?? $request->input('body')
+                ?? $request->input('text')
+                ?? $request->input('content')
+                ?? $request->input('msg')
+                ?? $request->input('messageText')
+                ?? ''
+        ));
         $attachmentInput = trim((string) $request->input('attachment', ''));
         $hasAttachmentFile = $attachmentFile instanceof UploadedFile;
 
@@ -119,15 +148,47 @@ class ChatController extends Controller
         }
 
         $validationRules = [
-            'message' => 'nullable|string|max:500',
+            'message' => 'nullable|string|max:5000',
+            'body' => 'nullable|string|max:5000',
+            'text' => 'nullable|string|max:5000',
+            'content' => 'nullable|string|max:5000',
+            'msg' => 'nullable|string|max:5000',
+            'messageText' => 'nullable|string|max:5000',
             'attachment' => 'nullable|string|max:2048',
             'group_id' => 'nullable|integer|exists:chat_groups,id',
             'user_id' => 'nullable|integer|exists:users,id',
+            'to_id' => 'nullable|integer|exists:users,id',
+            'toId' => 'nullable|integer|exists:users,id',
+            'receiver_id' => 'nullable|integer|exists:users,id',
+            'receiverId' => 'nullable|integer|exists:users,id',
+            'recipient_id' => 'nullable|integer|exists:users,id',
+            'recipientId' => 'nullable|integer|exists:users,id',
         ];
 
         if ($hasAttachmentFile) {
-            // Accept common document/image/video/audio formats, capped at 100MB.
-            $validationRules['attachment'] = 'nullable|file|max:102400|mimetypes:image/jpeg,image/png,image/gif,image/webp,image/bmp,image/svg+xml,video/mp4,video/webm,video/ogg,video/quicktime,audio/mpeg,audio/mp3,audio/wav,audio/webm,audio/ogg,audio/mp4,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-powerpoint,application/vnd.openxmlformats-officedocument.presentationml.presentation,text/plain,application/zip,application/x-zip-compressed,application/x-rar-compressed';
+            $allowedMimes = config('upload.allowed_mimetypes', [
+                'image/jpeg', 'image/png', 'image/gif', 'image/webp', 'image/bmp', 'image/svg+xml',
+                'video/mp4', 'video/webm', 'video/ogg', 'video/quicktime', 'video/x-msvideo', 'video/x-matroska', 'video/x-flv', 'video/mpeg',
+                'audio/mpeg', 'audio/mp3', 'audio/wav', 'audio/webm', 'audio/ogg', 'audio/mp4', 'audio/flac',
+                'application/pdf', 'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+                'application/vnd.ms-excel', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+                'application/vnd.ms-powerpoint', 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+                'text/plain', 'application/zip', 'application/x-zip-compressed', 'application/x-rar-compressed', 'application/x-7z-compressed',
+            ]);
+
+            $imageMimes = config('upload.mimetypes.image', []);
+            $documentMimes = config('upload.mimetypes.document', []);
+            $detectedMime = (string) $attachmentFile->getClientMimeType();
+
+            $maxFileSize = (int) config('upload.max_file_size_validation', config('upload.max_file_size_kb', 1048576));
+            if (in_array($detectedMime, $imageMimes, true)) {
+                $maxFileSize = (int) config('upload.max_image_size_kb', 40960); // 40MB
+            } elseif (in_array($detectedMime, $documentMimes, true)) {
+                $maxFileSize = (int) config('upload.max_document_size_kb', 10240); // 10MB
+            }
+
+            $mimeTypesString = implode(',', $allowedMimes);
+            $validationRules['attachment'] = "nullable|file|max:{$maxFileSize}|mimetypes:{$mimeTypesString}";
         }
 
         $request->validate($validationRules);
@@ -143,7 +204,13 @@ class ChatController extends Controller
             $groupId = $this->extractGroupId($request->input('to_id'));
         }
 
-        $toId = $request->input('user_id');
+        $toId = $request->input('user_id')
+            ?? $request->input('to_id')
+            ?? $request->input('toId')
+            ?? $request->input('receiver_id')
+            ?? $request->input('receiverId')
+            ?? $request->input('recipient_id')
+            ?? $request->input('recipientId');
         $attachment = $attachmentInput;
 
         if ($groupId !== null) {

@@ -57,7 +57,9 @@
 
 <script>
 import axios from "axios";
-import { mapActions } from "vuex";
+import { getApiOrigin } from "@/services/api-origin";
+
+const API_ORIGIN = getApiOrigin();
 
 export default {
   name: 'LoginForm',
@@ -73,8 +75,6 @@ export default {
     };
   },
   methods: {
-    ...mapActions(["saveToken"]),
-
     async onSubmit() {
       if (this.loading) return;
       this.loading = true;
@@ -82,13 +82,13 @@ export default {
 
       try {
         // 🔑 REQUIRED: Initialize Sanctum session
-        await axios.get("http://127.0.0.1:8000/sanctum/csrf-cookie", {
+        await axios.get(`${API_ORIGIN}/sanctum/csrf-cookie`, {
           withCredentials: true
         });
 
         // 🔐 Then login
         const response = await axios.post(
-            "http://127.0.0.1:8000/api/login",
+            `${API_ORIGIN}/api/login`,
             this.userData,
             { withCredentials: true }
         );
@@ -103,7 +103,7 @@ export default {
 
     handleResponse(data) {
       if (data.access_token) {
-        this.$store.commit('auth/setToken', data.access_token)
+        this.$store.dispatch('saveToken', data.access_token)
         axios.defaults.headers.common["Authorization"] = `Bearer ${data.access_token}`;
         this.$router.push("/chatapp");
       } else {

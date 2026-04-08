@@ -13,9 +13,12 @@ class Call extends Model
     protected $fillable = [
         'caller_id',
         'callee_id',
+        'group_id',
         'status',
+        'call_type',
         'offer',
         'answer_sdp',
+        'participants',
         'ended_by',
         'end_reason',
         'started_at',
@@ -26,6 +29,8 @@ class Call extends Model
     protected $casts = [
         'offer' => 'array',
         'answer_sdp' => 'array',
+        'participants' => 'array',
+        'call_type' => 'string',
         'started_at' => 'datetime',
         'answered_at' => 'datetime',
         'ended_at' => 'datetime',
@@ -39,6 +44,11 @@ class Call extends Model
     public function callee(): BelongsTo
     {
         return $this->belongsTo(User::class, 'callee_id');
+    }
+
+    public function group(): BelongsTo
+    {
+        return $this->belongsTo(Group::class, 'group_id');
     }
 
     public function endedBy(): BelongsTo

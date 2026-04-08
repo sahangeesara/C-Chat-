@@ -7,6 +7,7 @@ use App\Models\GroupMember;
 use App\Models\User;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Validator;
 
@@ -18,7 +19,7 @@ class GroupController extends Controller
             ->whereHas('memberships', function ($query) use ($request) {
                 $query->where('user_id', $request->user()->id);
             })
-            ->with(['creator:id,name,profile_photo_path', 'members:id,name,profile_photo_path'])
+            ->with(['creator:id,name,profile_photo_path', 'members:id,name,profile_photo_path,phone,city,country'])
             ->latest('id')
             ->get();
 
@@ -27,16 +28,34 @@ class GroupController extends Controller
 
     public function store(Request $request): JsonResponse
     {
+        if (!$request->hasFile('profile_image')) {
+            foreach (['image', 'group_image', 'group_photo', 'photo'] as $fileKey) {
+                if ($request->hasFile($fileKey)) {
+                    $request->files->set('profile_image', $request->file($fileKey));
+                    break;
+                }
+            }
+        }
+
         $payload = [
             'name' => $this->extractGroupName($request),
+            'description' => $request->input('description')
+                ?? $request->input('details')
+                ?? $request->input('group_details')
+                ?? $request->input('groupDetails'),
             'user_ids' => $this->extractMemberIds($request),
         ];
 
         $validated = Validator::make($payload, [
             'name' => 'required|string|max:120',
+            'description' => 'nullable|string|max:2000',
             'user_ids' => 'required|array|min:1',
             'user_ids.*' => 'required|integer|distinct|exists:users,id',
         ])->validate();
+
+        $request->validate([
+            'profile_image' => 'nullable|file|mimetypes:image/jpeg,image/png,image/gif,image/webp,image/bmp,image/svg+xml|max:40960',
+        ]);
 
         $creator = $request->user();
 
@@ -52,9 +71,13 @@ class GroupController extends Controller
             ], 422);
         }
 
-        $group = DB::transaction(function () use ($validated, $creator, $memberIds) {
+        $group = DB::transaction(function () use ($validated, $creator, $memberIds, $request) {
             $group = Group::create([
                 'name' => $validated['name'],
+                'description' => $validated['description'] ?? null,
+                'profile_image_path' => $request->hasFile('profile_image')
+                    ? $request->file('profile_image')->store('group-profiles', 'public')
+                    : null,
                 'created_by' => $creator->id,
             ]);
 
@@ -83,7 +106,7 @@ class GroupController extends Controller
             return $group;
         });
 
-        $group->load(['creator:id,name,profile_photo_path', 'members:id,name,profile_photo_path']);
+        $group->load(['creator:id,name,profile_photo_path', 'members:id,name,profile_photo_path,phone,city,country']);
 
         return response()->json([
             'status' => 'Group created',
@@ -103,15 +126,47 @@ class GroupController extends Controller
             return response()->json(['error' => 'Only admin or co-admin can update group details.'], 403);
         }
 
+        if (!$request->hasFile('profile_image')) {
+            foreach (['image', 'group_image', 'group_photo', 'photo'] as $fileKey) {
+                if ($request->hasFile($fileKey)) {
+                    $request->files->set('profile_image', $request->file($fileKey));
+                    break;
+                }
+            }
+        }
+
         $validated = Validator::make([
             'name' => $this->extractGroupName($request),
+            'description' => $request->input('description')
+                ?? $request->input('details')
+                ?? $request->input('group_details')
+                ?? $request->input('groupDetails'),
         ], [
-            'name' => 'required|string|max:120',
+            'name' => 'nullable|string|max:120',
+            'description' => 'nullable|string|max:2000',
         ])->validate();
 
-        $group->name = $validated['name'];
+        $request->validate([
+            'profile_image' => 'nullable|file|mimetypes:image/jpeg,image/png,image/gif,image/webp,image/bmp,image/svg+xml|max:40960',
+        ]);
+
+        if (isset($validated['name']) && trim((string) $validated['name']) !== '') {
+            $group->name = $validated['name'];
+        }
+
+        if (array_key_exists('description', $validated)) {
+            $group->description = $validated['description'];
+        }
+
+        if ($request->hasFile('profile_image')) {
+            if (!empty($group->profile_image_path)) {
+                Storage::disk('public')->delete($group->profile_image_path);
+            }
+            $group->profile_image_path = $request->file('profile_image')->store('group-profiles', 'public');
+        }
+
         $group->save();
-        $group->load(['creator:id,name,profile_photo_path', 'members:id,name,profile_photo_path']);
+        $group->load(['creator:id,name,profile_photo_path', 'members:id,name,profile_photo_path,phone,city,country']);
 
         return response()->json([
             'status' => 'Group updated',
@@ -127,11 +182,22 @@ class GroupController extends Controller
             return response()->json(['error' => 'You are not a member of this group.'], 403);
         }
 
-        $group->load(['creator:id,name,profile_photo_path', 'members:id,name,profile_photo_path']);
+        $group->load(['creator:id,name,profile_photo_path,phone,city,country', 'members:id,name,profile_photo_path,phone,city,country']);
+
+        $memberIds = $group->members->pluck('id')->all();
+        $nonGroupMembers = User::query()
+            ->whereNotIn('id', $memberIds)
+            ->where('id', '!=', $request->user()->id)
+            ->select(['id', 'name', 'profile_photo_path', 'phone', 'city', 'country'])
+            ->orderBy('name')
+            ->limit(100)
+            ->get();
 
         return response()->json([
             'group' => $group,
             'your_role' => $membership->role,
+            'members' => $group->members,
+            'non_group_members' => $nonGroupMembers,
         ]);
     }
 
@@ -288,12 +354,15 @@ class GroupController extends Controller
         return response()->json(['status' => 'Group deleted']);
     }
 
-    private function membershipFor(int $groupId, int $userId): ?GroupMember
+    private function membershipFor(int $groupId, int $userId)
     {
-        return GroupMember::query()
+        /** @var GroupMember|null $membership */
+        $membership = GroupMember::query()
             ->where('group_id', $groupId)
             ->where('user_id', $userId)
             ->first();
+
+        return $membership instanceof GroupMember ? $membership : null;
     }
 
     private function extractGroupName(Request $request): ?string

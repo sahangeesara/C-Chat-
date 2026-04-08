@@ -50,7 +50,7 @@ Route::middleware(['auth:api', 'last.seen'])->group(function () {
     // Chat routes
     Route::get('chat/{id}', [ChatController::class,'chat']);
     Route::get('chat/group/{group}', [ChatController::class, 'groupMessages']);
-    Route::post('send', [ChatController::class,'send']);
+    Route::post('send', [ChatController::class,'send'])->middleware('large.uploads');
 
 //    // Test broadcast
     Route::get('/test-broadcast', function () {
@@ -67,9 +67,13 @@ Route::middleware(['auth:api', 'last.seen'])->group(function () {
     // routes/api.php
     Route::post('/call/start', [CallController::class, 'start']);
     Route::post('/call/answer', [CallController::class, 'answer']);
-    Route::post('/call/accept', [CallController::class, 'answer']);
+    Route::post('/call/accept', [CallController::class, 'accept']);
     Route::post('/call/ice', [CallController::class, 'ice']);
     Route::post('/call/end', [CallController::class, 'end']);
+    Route::post('/call/group/start', [CallController::class, 'groupStart']);
+    Route::post('/call/group/join', [CallController::class, 'groupJoin']);
+    Route::post('/call/group/signal', [CallController::class, 'groupSignal']);
+    Route::post('/call/group/end', [CallController::class, 'groupEnd']);
     Route::get('/call/history', [CallController::class, 'history']);
     Route::get('/call/{id}', [CallController::class, 'show'])->whereNumber('id');
 
@@ -81,9 +85,9 @@ Route::middleware(['auth:api', 'last.seen'])->group(function () {
     Route::patch('groups/{group}', [GroupController::class, 'update']);
     Route::put('groups/{group}', [GroupController::class, 'update']);
     Route::get('groups/{group}/messages', [ChatController::class, 'groupMessages']);
-    Route::post('groups/{group}/messages', [ChatController::class, 'sendToGroup']);
+    Route::post('groups/{group}/messages', [ChatController::class, 'sendToGroup'])->middleware('large.uploads');
     Route::get('group/{group}/messages', [ChatController::class, 'groupMessages']);
-    Route::post('group/{group}/messages', [ChatController::class, 'sendToGroup']);
+    Route::post('group/{group}/messages', [ChatController::class, 'sendToGroup'])->middleware('large.uploads');
     Route::get('group/messages/{group}', [ChatController::class, 'groupMessages']);
     // Backward compatibility for clients that use prefixed group IDs.
     Route::delete('groups/group-{group}', [GroupController::class, 'destroy'])->whereNumber('group');

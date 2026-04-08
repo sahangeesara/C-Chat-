@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 
 use App\Models\User;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\Storage;
 
 class UserController extends Controller
@@ -50,13 +51,75 @@ class UserController extends Controller
      */
     public function show(string $id)
     {
-        $member = User::findOrFail($id);
+        $groupColumns = ['chat_groups.id', 'chat_groups.name', 'chat_groups.created_by'];
 
-        if (!$member) {
-            return response()->json(['message' => 'User not found'], 404);
+        if (Schema::hasColumn('chat_groups', 'description')) {
+            $groupColumns[] = 'chat_groups.description';
         }
 
-        return response()->json($member);
+        if (Schema::hasColumn('chat_groups', 'profile_image_path')) {
+            $groupColumns[] = 'chat_groups.profile_image_path';
+        }
+
+        $member = User::query()
+            ->with(['groups' => function ($query) use ($groupColumns) {
+                $query->select($groupColumns);
+            }])
+            ->findOrFail($id);
+
+        $authUser = auth()->user();
+
+        $mutualGroups = collect();
+        if ($authUser) {
+            $authGroupIds = $authUser->groups()->pluck('chat_groups.id')->all();
+            if (!empty($authGroupIds)) {
+                $mutualGroups = $member->groups()
+                    ->whereIn('chat_groups.id', $authGroupIds)
+                    ->get($groupColumns);
+            }
+        }
+
+        $sameCountryMembers = collect();
+        if (!empty($member->country)) {
+            $sameCountryMembers = User::query()
+                ->where('country', $member->country)
+                ->where('id', '!=', $member->id)
+                ->select(['id', 'name', 'profile_photo_path', 'phone', 'city', 'country', 'last_seen_at'])
+                ->orderBy('name')
+                ->limit(100)
+                ->get();
+        }
+
+        $sameCityMembers = collect();
+        if (!empty($member->country) && !empty($member->city)) {
+            $sameCityMembers = User::query()
+                ->where('country', $member->country)
+                ->where('city', $member->city)
+                ->where('id', '!=', $member->id)
+                ->select(['id', 'name', 'profile_photo_path', 'phone', 'city', 'country', 'last_seen_at'])
+                ->orderBy('name')
+                ->limit(100)
+                ->get();
+        }
+
+        return response()->json([
+            'id' => $member->id,
+            'name' => $member->name,
+            'email' => $member->email,
+            'profile_photo_path' => $member->profile_photo_path,
+            'profile_photo_url' => $member->profile_photo_url,
+            'phone' => $member->phone,
+            'address' => $member->address,
+            'city' => $member->city,
+            'country' => $member->country,
+            'is_online' => $member->is_online,
+            'last_seen_at' => $member->last_seen_at?->toIso8601String(),
+            'last_seen_human' => $member->last_seen_human,
+            'groups' => $member->groups,
+            'mutual_groups' => $mutualGroups,
+            'same_country_members' => $sameCountryMembers,
+            'same_city_members' => $sameCityMembers,
+        ]);
     }
 
     public function status(string $id)

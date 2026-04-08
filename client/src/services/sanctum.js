@@ -1,7 +1,8 @@
 import axios from 'axios';
+import { getApiOrigin } from '@/services/api-origin';
 
 const sanctum = axios.create({
-    baseURL: 'http://127.0.0.1:8000',
+    baseURL: getApiOrigin(),
     withCredentials: true,
     headers: {
         Accept: 'application/json'

@@ -9,8 +9,8 @@ export default createStore({
     token: localStorage.getItem('token') || null, // ✅ Store token
   },
   getters: {
-    isAuthenticated: (state) => state.loggedIn,
-    getToken: (state) => state.token, // ✅ Token getter
+    isAuthenticated: (state) => state.loggedIn || !!localStorage.getItem('token'),
+    getToken: (state) => state.token || localStorage.getItem('token') || null, // ✅ Token getter
   },
   mutations: {
     setLoggedIn(state, value) {
@@ -30,10 +30,12 @@ export default createStore({
     saveToken({ commit }, token) {
       commit('setToken', token);
       commit('setLoggedIn', true);
+      commit('auth/setToken', token, { root: true });
     },
     logout({ commit }) {
       commit('setLoggedIn', false);
       commit('setToken', null);
+      commit('auth/clearToken', null, { root: true });
     },
   },
 });

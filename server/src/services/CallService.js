@@ -1,7 +1,9 @@
 import axios from 'axios'
 import store from '@/store'
 
-const API_BASE_URL = 'http://localhost:8000/api'
+const API_BASE_URL = process.env.VUE_APP_API_BASE_URL
+    ? `${process.env.VUE_APP_API_BASE_URL.replace(/\/$/, '')}/api`
+    : `${window.location.protocol}//${window.location.hostname}:8000/api`
 
 class CallService {
     constructor() {
@@ -12,10 +14,20 @@ class CallService {
             },
         })
 
+        this.refreshHttp = axios.create({
+            baseURL: API_BASE_URL,
+            headers: {
+                'Content-Type': 'application/json',
+            },
+        })
+
+        this.isRefreshingToken = false
+
         // 🔐 Attach JWT token
         this.http.interceptors.request.use(config => {
-            if (!config.url.includes('broadcasting/auth')) {
-                const token = store.getters['auth/getToken']
+            const requestUrl = String(config?.url || '')
+            if (!requestUrl.includes('broadcasting/auth')) {
+                const token = this.getToken()
                 if (token) {
                     config.headers.Authorization = `Bearer ${token}`
                 }
@@ -23,7 +35,65 @@ class CallService {
             return config
         })
 
+        this.http.interceptors.response.use(
+            (response) => response,
+            async (error) => {
+                const status = error?.response?.status
+                const originalRequest = error?.config
+                const requestUrl = String(originalRequest?.url || '')
+                const isAuthEndpoint = requestUrl.includes('/login') || requestUrl.includes('/signup') || requestUrl.includes('/refresh')
+
+                if (status !== 401 || !originalRequest || originalRequest._retry || isAuthEndpoint) {
+                    return Promise.reject(error)
+                }
+
+                originalRequest._retry = true
+
+                if (this.isRefreshingToken) {
+                    return Promise.reject(error)
+                }
+
+                this.isRefreshingToken = true
+                try {
+                    const currentToken = this.getToken()
+                    if (!currentToken) {
+                        return Promise.reject(error)
+                    }
+
+                    const refreshResponse = await this.refreshHttp.post('/refresh', {}, {
+                        headers: {
+                            Authorization: `Bearer ${currentToken}`,
+                        },
+                    })
+
+                    const newToken = refreshResponse?.data?.access_token
+                    if (!newToken) {
+                        return Promise.reject(error)
+                    }
+
+                    this.storeToken(newToken)
+                    originalRequest.headers.Authorization = `Bearer ${newToken}`
+
+                    return this.http(originalRequest)
+                } catch (refreshError) {
+                    return Promise.reject(refreshError)
+                } finally {
+                    this.isRefreshingToken = false
+                }
+            }
+        )
+
         this.callHistoryStorageKey = 'chatapp.callHistory'
+    }
+
+    getToken() {
+        const fromStore = store?.getters?.['auth/getToken']
+        return fromStore || localStorage.getItem('access_token') || localStorage.getItem('token') || null
+    }
+
+    storeToken(token) {
+        localStorage.setItem('access_token', token)
+        localStorage.setItem('token', token)
     }
 
     readLocalCallHistory() {
@@ -137,4 +207,3 @@ class CallService {
 }
 
 export default new CallService()
-

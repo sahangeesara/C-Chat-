@@ -11,7 +11,7 @@ import 'vue3-toastify/dist/index.css'
 const token = localStorage.getItem('token')
 if (token) {
   axios.defaults.headers.common['Authorization'] = `Bearer ${token}`
-  store.commit('auth/setToken', token)
+  store.dispatch('saveToken', token)
 }
 
 // ✅ Setup router

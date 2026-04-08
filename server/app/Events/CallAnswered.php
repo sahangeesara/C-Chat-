@@ -34,4 +34,22 @@ class CallAnswered implements ShouldBroadcastNow
     {
         return new PrivateChannel('call.' . $this->toId);
     }
+
+    public function broadcastAs(): string
+    {
+        return 'call.answered';
+    }
+
+    public function broadcastWith(): array
+    {
+        return [
+            'from_id' => $this->fromId,
+            'to_id' => $this->toId,
+            'fromId' => $this->fromId,
+            'toId' => $this->toId,
+            'sdp' => $this->sdp,
+            'call_id' => $this->callId,
+            'callId' => $this->callId,
+        ];
+    }
 }

@@ -34,8 +34,22 @@ class IceCandidate implements ShouldBroadcastNow
     {
         return new PrivateChannel('call.' . $this->toId);
     }
-    public function broadcastAs()
+
+    public function broadcastAs(): string
     {
         return 'ice.candidate';
+    }
+
+    public function broadcastWith(): array
+    {
+        return [
+            'from_id' => $this->fromId,
+            'to_id' => $this->toId,
+            'fromId' => $this->fromId,
+            'toId' => $this->toId,
+            'candidate' => $this->candidate,
+            'call_id' => $this->callId,
+            'callId' => $this->callId,
+        ];
     }
 }

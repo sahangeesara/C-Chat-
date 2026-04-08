@@ -215,7 +215,7 @@
             ref="chatContainer"
             style="height: 0; background-color: transparent;"
         >
-          <div v-for="(msg, index) in chat.messages" :key="index"
+          <div v-for="(msg, index) in chat.messages" :key="msg.id || `${msg.created_at || ''}-${index}`"
                class="mb-2 d-flex"
                :class="{ 'justify-content-end': isCurrentUserMessage(msg) }"
           >
@@ -235,13 +235,15 @@
                 <div class="attachment-container mb-2">
                   <img
                     v-if="getMessageAttachment(msg).kind === 'image'"
-                    :src="getMessageAttachment(msg).url"
+                    :src="resolveAttachmentUrl(getMessageAttachment(msg))"
                     class="chat-attachment-image mb-2"
+                    style="cursor: zoom-in;"
+                    @click="viewAttachment(getMessageAttachment(msg))"
                     alt="Attachment"
                   >
                   <video
                     v-else-if="getMessageAttachment(msg).kind === 'video'"
-                    :src="getMessageAttachment(msg).url"
+                    :src="resolveAttachmentUrl(getMessageAttachment(msg))"
                     class="chat-attachment-video mb-2"
                     controls
                     preload="metadata"
@@ -252,7 +254,7 @@
                   </video>
                   <audio
                     v-else-if="getMessageAttachment(msg).kind === 'audio'"
-                    :src="getMessageAttachment(msg).url"
+                    :src="resolveAttachmentUrl(getMessageAttachment(msg))"
                     controls
                     preload="metadata"
                     class="w-100 mb-2"
@@ -339,6 +341,10 @@
               </div>
             </div>
             <button type="button" class="btn btn-sm btn-outline-light" @click="clearSelectedAttachment">Remove</button>
+          </div>
+
+          <div v-if="attachmentValidationError" class="text-danger small mt-2">
+            {{ attachmentValidationError }}
           </div>
 
           <input
@@ -465,6 +471,16 @@
           <p class="details-note">Group details are available from the active group chat header.</p>
 
           <template v-if="activeGroupDetails">
+            <div class="mb-3 text-center">
+              <img
+                v-if="getUserPhoto(activeGroupDetails)"
+                :src="getUserPhoto(activeGroupDetails)"
+                alt="Group profile"
+                class="settings-avatar"
+              />
+              <div v-else class="settings-avatar-placeholder">{{ (activeGroupDetails?.name || '?').charAt(0).toUpperCase() }}</div>
+            </div>
+
             <div class="user-details-grid">
               <div class="details-item">
                 <small class="details-label">Group name</small>
@@ -490,7 +506,10 @@
                   <span class="rounded-circle bg-secondary d-flex align-items-center justify-content-center" style="width: 32px; height: 32px; flex-shrink: 0;">
                     <span class="text-white small">{{ (member?.name?.charAt(0) || '?').toUpperCase() }}</span>
                   </span>
-                  <div class="small" style="color: #163d66;">{{ member?.name || 'Unknown User' }}</div>
+                  <div class="small" style="color: #163d66;">
+                    <div>{{ member?.name || 'Unknown User' }}</div>
+                    <small class="text-muted">{{ memberLocationLabel(member) }}</small>
+                  </div>
                 </div>
                 <small class="text-muted">{{ sameUserId(member?.id, currentUserId) ? 'You' : 'Member' }}</small>
               </div>
@@ -643,12 +662,34 @@
       <button type="button" class="btn btn-sm btn-light" @click="closeImagePreview">
         <i class="bi bi-arrow-left me-1"></i>Back
       </button>
-      <button type="button" class="btn btn-sm btn-outline-light" @click="closeImagePreview">
-        <i class="bi bi-x-lg me-1"></i>Close
-      </button>
+      <div class="d-flex align-items-center gap-2">
+        <button
+          v-if="previewAttachment"
+          type="button"
+          class="btn btn-sm btn-primary"
+          @click="downloadAttachment(previewAttachment)"
+        >
+          <i class="bi bi-download me-1"></i>Download
+        </button>
+        <button type="button" class="btn btn-sm btn-outline-light" @click="closeImagePreview">
+          <i class="bi bi-x-lg me-1"></i>Close
+        </button>
+      </div>
     </div>
     <div class="image-preview-stage">
-      <img :src="imagePreviewUrl" :alt="imagePreviewName || 'Image preview'" class="image-preview-full">
+      <img
+        v-if="previewAttachmentKind === 'image'"
+        :src="imagePreviewUrl"
+        :alt="imagePreviewName || 'Attachment file'"
+        class="image-preview-full"
+      >
+      <video
+        v-else-if="previewAttachmentKind === 'video'"
+        :src="imagePreviewUrl"
+        class="image-preview-full"
+        controls
+        autoplay
+      ></video>
     </div>
   </div>
 
@@ -696,6 +737,26 @@
         <button type="button" class="btn btn-sm btn-outline-secondary" @click="closeGroupSettings">
           <i class="bi bi-x-lg"></i>
         </button>
+      </div>
+
+      <div class="mb-3">
+        <label class="form-label mb-1" for="group-settings-name">Group Name</label>
+        <input id="group-settings-name" type="text" class="form-control" v-model="groupSettingsForm.name" placeholder="Group name" />
+      </div>
+
+      <div class="mb-3 text-center">
+        <img
+          v-if="groupSettingsPreviewUrl || getUserPhoto(editingGroupForSettings)"
+          :src="groupSettingsPreviewUrl || getUserPhoto(editingGroupForSettings)"
+          alt="Group"
+          class="settings-avatar"
+        />
+        <div v-else class="settings-avatar-placeholder">{{ (groupSettingsForm.name || editingGroupForSettings?.name || '?').charAt(0).toUpperCase() }}</div>
+      </div>
+
+      <div class="mb-3">
+        <label class="form-label mb-1" for="group-settings-image">Group Profile Image</label>
+        <input id="group-settings-image" type="file" class="form-control" accept="image/*" @change="handleGroupImageUpload" />
       </div>
 
       <div class="mb-3">
@@ -769,6 +830,9 @@
       </div>
 
       <div class="d-flex gap-2 justify-content-end mt-3">
+        <button type="button" class="btn btn-primary" :disabled="groupFormSubmitting" @click="saveGroupSettings">
+          {{ groupFormSubmitting ? 'Saving...' : 'Save Changes' }}
+        </button>
         <button type="button" class="btn btn-outline-secondary" @click="closeGroupSettings">Close</button>
         <button type="button" class="btn btn-outline-danger" @click="deleteGroup">Delete Group</button>
       </div>
@@ -780,10 +844,12 @@
 <script>
 import { ref, onMounted, onBeforeUnmount, computed, watch } from 'vue';
 import { useRouter } from 'vue-router';
+import store from '@/store';
 import Chat from './Chat.vue';
 import AllServiceService from '@/services/all-service';
 import echo from '@/services/echo'
 import CallService from "@/services/CallService";
+import { getApiOrigin } from '@/services/api-origin'
 
 export default {
   components: { Chat },
@@ -850,15 +916,23 @@ export default {
     const incomingCallTimeoutId = ref(null)
     const attachmentInput = ref(null)
     const selectedAttachment = ref(null)
+    const attachmentValidationError = ref('')
+    const isSendingMessage = ref(false)
     const showImagePreview = ref(false)
     const imagePreviewUrl = ref('')
     const imagePreviewName = ref('')
+    const previewAttachment = ref(null)
+    const previewAttachmentKind = ref('image')
     const activeChannelNames = ref([])
     const activeGroupChannelNames = ref([])
     const knownChatUserIds = ref([])
     const latestProfileRequestId = ref(0)
     const pendingIceCandidates = ref([])
     const isInitialLoading = ref(true)
+    const MAX_MEDIA_ATTACHMENT_SIZE_BYTES = 40 * 1024 * 1024
+    const MAX_DOCUMENT_ATTACHMENT_SIZE_BYTES = 10 * 1024 * 1024
+    const groupSettingsForm = ref({ name: '', image: null })
+    const groupSettingsPreviewUrl = ref('')
     const updateViewportMode = () => {
       isMobileView.value = window.innerWidth < 768;
       if (!isMobileView.value) {
@@ -896,6 +970,28 @@ export default {
       }
 
       return `${value.toFixed(value >= 10 || unitIndex === 0 ? 0 : 1)} ${units[unitIndex]}`
+    }
+
+    const getAttachmentLimitBytes = (kind) => (
+      kind === 'document' ? MAX_DOCUMENT_ATTACHMENT_SIZE_BYTES : MAX_MEDIA_ATTACHMENT_SIZE_BYTES
+    )
+
+    const validateAttachmentFile = (file) => {
+      const kind = getAttachmentKind(file)
+      const maxBytes = getAttachmentLimitBytes(kind)
+
+      if (Number(file?.size || 0) <= maxBytes) {
+        return { valid: true, kind, maxBytes }
+      }
+
+      const limitLabel = formatFileSize(maxBytes)
+      const kindLabel = kind === 'document' ? 'Document' : (kind.charAt(0).toUpperCase() + kind.slice(1))
+      return {
+        valid: false,
+        kind,
+        maxBytes,
+        message: `"${file.name}" exceeds the ${kindLabel} limit (${limitLabel}).`,
+      }
     }
 
     const normalizeAttachment = (attachment, fallback = {}) => {
@@ -942,7 +1038,7 @@ export default {
         return user.profile_photo_url
       }
 
-      const rawPath = user.profile_photo_path || user.avatar || user.image || ''
+      const rawPath = user.profile_photo_path || user.group_profile_path || user.group_image_path || user.avatar || user.image || ''
       if (!rawPath) {
         return ''
       }
@@ -951,7 +1047,7 @@ export default {
         return rawPath
       }
 
-      const baseUrl = (process.env.VUE_APP_API_BASE_URL || 'http://127.0.0.1:8000').replace(/\/$/, '')
+      const baseUrl = getApiOrigin().replace(/\/$/, '')
       const normalizedPath = rawPath.replace(/^\/+/, '')
 
       if (normalizedPath.startsWith('storage/')) {
@@ -985,6 +1081,7 @@ export default {
         URL.revokeObjectURL(selectedAttachment.value.previewUrl)
       }
       selectedAttachment.value = null
+      attachmentValidationError.value = ''
       if (attachmentInput.value) {
         attachmentInput.value.value = ''
       }
@@ -993,6 +1090,18 @@ export default {
     const handleAttachmentChange = (event) => {
       const file = event?.target?.files?.[0]
       if (!file) return
+
+      const validation = validateAttachmentFile(file)
+      if (!validation.valid) {
+        attachmentValidationError.value = validation.message
+        clearSelectedAttachment()
+        if (event?.target) {
+          event.target.value = ''
+        }
+        return
+      }
+
+      attachmentValidationError.value = ''
 
       if (selectedAttachment.value?.previewUrl) {
         URL.revokeObjectURL(selectedAttachment.value.previewUrl)
@@ -1216,61 +1325,123 @@ export default {
 
     const fetchWeatherAndLocation = async (latitude, longitude) => {
       try {
-        const weatherUrl = `/api/weather?latitude=${latitude}&longitude=${longitude}&current=temperature_2m,weather_code&timezone=auto`
-        const locationUrl = `/api/location?latitude=${latitude}&longitude=${longitude}&language=en&format=json`
+        console.log(`[Weather] Fetching for coords: ${latitude}, ${longitude}`)
+
+        // Use external Open-Meteo API directly (CORS enabled)
+        const weatherUrl = `https://api.open-meteo.com/v1/forecast?latitude=${latitude}&longitude=${longitude}&current=temperature_2m,weather_code&timezone=auto`
+        const locationUrl = `https://geocoding-api.open-meteo.com/v1/reverse?latitude=${latitude}&longitude=${longitude}&language=en&format=json`
+
+        // Fetch with timeout
+        const fetchWithTimeout = (url, timeoutMs = 8000) => {
+          return Promise.race([
+            fetch(url),
+            new Promise((_, reject) =>
+              setTimeout(() => reject(new Error('Fetch timeout')), timeoutMs)
+            )
+          ])
+        }
 
         const [weatherRes, locationRes] = await Promise.all([
-          fetch(weatherUrl),
-          fetch(locationUrl)
+          fetchWithTimeout(weatherUrl),
+          fetchWithTimeout(locationUrl)
         ])
 
-        const weatherData = await weatherRes.json()
-        const locationData = await locationRes.json()
+        const weatherData = weatherRes?.ok ? await weatherRes.json() : null
+        const locationData = locationRes?.ok ? await locationRes.json() : null
 
+        console.log('[Weather] Response:', { weatherData, locationData })
+
+        // Process weather
         const temp = weatherData?.current?.temperature_2m
         const code = weatherData?.current?.weather_code
-        const weatherLabel = weatherCodeText(code)
+        const weatherLabel = code !== null && code !== undefined ? weatherCodeText(code) : 'Clear'
 
         if (typeof temp === 'number') {
           currentWeather.value = `${Math.round(temp)}°C ${weatherLabel}`
         } else {
-          currentWeather.value = weatherLabel
+          currentWeather.value = weatherLabel || 'Weather unavailable'
         }
 
+        // Process location - display city and country if available
         const place = locationData?.results?.[0]
-        if (place) {
-          const parts = [place.city, place.country].filter(Boolean)
-          currentLocation.value = parts.join(', ') || 'Unknown location'
+        if (place && (place.city || place.name || place.country)) {
+          const city = place.city || place.name || ''
+          const country = place.country || ''
+          const parts = [city, country].filter(p => p && p.trim())
+          currentLocation.value = parts.length > 0 ? parts.join(', ') : 'Location unknown'
         } else {
-          currentLocation.value = 'Unknown location'
+          currentLocation.value = 'Location unavailable'
         }
+        console.log('[Weather] Final values:', { weather: currentWeather.value, location: currentLocation.value })
       } catch (error) {
-        console.warn('Unable to load weather/location:', error)
-        currentWeather.value = 'Weather unavailable'
-        currentLocation.value = 'Location unavailable'
+        console.warn('[Weather] Error:', error?.message || error)
+        // If it's a timeout or network error, try again in 30 seconds
+        currentWeather.value = 'Weather loading...'
+        currentLocation.value = 'Location loading...'
       }
     }
 
     const loadCurrentWeather = async () => {
       if (!navigator?.geolocation) {
+        console.warn('[Weather] Geolocation not available')
+        // Fallback to user's profile location if available
+        const userCity = currentUserProfile.value?.city
+        const userCountry = currentUserProfile.value?.country
+        if (userCity || userCountry) {
+          const parts = [userCity, userCountry].filter(p => p && p.trim())
+          currentLocation.value = parts.length > 0 ? parts.join(', ') : 'Location unavailable'
+        } else {
+          currentLocation.value = 'Location unavailable'
+        }
         currentWeather.value = 'Weather unavailable'
-        currentLocation.value = 'Location unavailable'
         return
       }
+
+      console.log('[Weather] Requesting geolocation...')
 
       await new Promise((resolve) => {
         navigator.geolocation.getCurrentPosition(
           async (position) => {
             const { latitude, longitude } = position.coords
-            await fetchWeatherAndLocation(latitude, longitude)
+            console.log('[Weather] Got coords:', { latitude, longitude })
+            try {
+              await fetchWeatherAndLocation(latitude, longitude)
+            } catch (e) {
+              console.error('[Weather] Fetch error:', e)
+              // Fallback to profile location on error
+              const userCity = currentUserProfile.value?.city
+              const userCountry = currentUserProfile.value?.country
+              if (userCity || userCountry) {
+                const parts = [userCity, userCountry].filter(p => p && p.trim())
+                currentLocation.value = parts.length > 0 ? parts.join(', ') : 'Location unavailable'
+              } else {
+                currentLocation.value = 'Location unavailable'
+              }
+              currentWeather.value = 'Weather unavailable'
+            }
             resolve()
           },
-          () => {
+          (error) => {
+            console.warn('[Weather] Geolocation error:', error?.code, error?.message)
+            // Fallback to user's profile location
+            const userCity = currentUserProfile.value?.city
+            const userCountry = currentUserProfile.value?.country
+            if (userCity || userCountry) {
+              const parts = [userCity, userCountry].filter(p => p && p.trim())
+              currentLocation.value = parts.length > 0 ? `${parts.join(', ')} (profile)` : 'Location unavailable'
+            } else if (error?.code === 1) {
+              currentLocation.value = 'Location permission denied'
+            } else if (error?.code === 2) {
+              currentLocation.value = 'Location unavailable'
+            } else if (error?.code === 3) {
+              currentLocation.value = 'Location timeout'
+            } else {
+              currentLocation.value = 'Location error'
+            }
             currentWeather.value = 'Weather unavailable'
-            currentLocation.value = 'Location denied'
             resolve()
           },
-          { timeout: 10000 }
+          { timeout: 15000, enableHighAccuracy: false }
         )
       })
     }
@@ -1721,6 +1892,9 @@ export default {
         ? group.members.map((member) => normalizeGroupMember({
             id: member?.id,
             name: member?.name,
+            phone: member?.phone,
+            city: member?.city,
+            country: member?.country,
             profile_photo_path: member?.profile_photo_path,
             profile_photo_url: member?.profile_photo_url,
           })).filter(Boolean)
@@ -1729,6 +1903,8 @@ export default {
       return {
         id: group?.id,
         name: group?.name || localGroup?.name || 'Untitled Group',
+        group_image_path: group?.group_image_path || group?.image || group?.avatar || localGroup?.group_image_path || '',
+        profile_photo_url: group?.group_image_url || group?.image_url || localGroup?.profile_photo_url || '',
         created_by: group?.created_by ?? group?.creator?.id ?? localGroup?.created_by ?? null,
         created_at: group?.created_at || localGroup?.created_at || new Date().toISOString(),
         members,
@@ -1768,7 +1944,35 @@ export default {
       return {
         id,
         name: member?.name || user?.name || `User #${id}`,
+        phone: member?.phone || user?.phone || '',
+        city: member?.city || user?.city || '',
+        country: member?.country || user?.country || '',
       }
+    }
+
+    const mutualGroupsWithSelectedUser = computed(() => {
+      const targetId = userDetails.value?.id
+      if (!targetId) return []
+
+      return groups.value.filter((group) =>
+        (group?.members || []).some((member) => sameUserId(member?.id, targetId))
+      )
+    })
+
+    const sameCountryMembers = computed(() => {
+      const targetCountry = (userDetails.value?.country || '').trim().toLowerCase()
+      const targetId = userDetails.value?.id
+      if (!targetCountry) return []
+
+      return userView.value
+        .filter((user) => user?.id && !sameUserId(user.id, targetId) && (user?.country || '').trim().toLowerCase() === targetCountry)
+        .slice(0, 20)
+    })
+
+    const memberLocationLabel = (member) => {
+      const city = member?.city || 'City n/a'
+      const country = member?.country || 'Country n/a'
+      return `${city}, ${country}`
     }
 
     const isGroupConversation = (conversation) => Boolean(
@@ -1810,6 +2014,7 @@ export default {
       const group = groups.value.find((item) => sameUserId(item.id, groupId))
       const localMessages = Array.isArray(group?.messages) ? group.messages : []
       chat.value.messages = localMessages
+      scheduleScrollToBottom()
 
       try {
         const response = await allService.getGroupMessages(groupId)
@@ -1840,6 +2045,7 @@ export default {
         })
 
         chat.value.messages = mergedMessages
+        scheduleScrollToBottom()
 
         const groupIndex = groups.value.findIndex((item) => sameUserId(item.id, groupId))
         if (groupIndex !== -1) {
@@ -1942,6 +2148,11 @@ export default {
 
       const freshGroup = groups.value.find((item) => sameUserId(item.id, group.id)) || group
       editingGroupForSettings.value = freshGroup
+      groupSettingsForm.value = {
+        name: freshGroup?.name || '',
+        image: null,
+      }
+      groupSettingsPreviewUrl.value = ''
       showAddMemberForm.value = false
       newGroupMembers.value = []
       showGroupSettings.value = true
@@ -1952,6 +2163,61 @@ export default {
       editingGroupForSettings.value = null
       showAddMemberForm.value = false
       newGroupMembers.value = []
+      groupSettingsForm.value = { name: '', image: null }
+      if (groupSettingsPreviewUrl.value) {
+        URL.revokeObjectURL(groupSettingsPreviewUrl.value)
+      }
+      groupSettingsPreviewUrl.value = ''
+    }
+
+    const handleGroupImageUpload = (event) => {
+      const file = event?.target?.files?.[0] || null
+      groupSettingsForm.value.image = file
+
+      if (groupSettingsPreviewUrl.value) {
+        URL.revokeObjectURL(groupSettingsPreviewUrl.value)
+      }
+
+      groupSettingsPreviewUrl.value = file ? URL.createObjectURL(file) : ''
+    }
+
+    const saveGroupSettings = async () => {
+      if (!editingGroupForSettings.value?.id) {
+        return
+      }
+
+      const nextName = (groupSettingsForm.value.name || '').trim()
+      if (!nextName) {
+        groupFormError.value = 'Group name is required.'
+        return
+      }
+
+      groupFormSubmitting.value = true
+      groupFormError.value = ''
+
+      try {
+        const payload = new FormData()
+        payload.append('name', nextName)
+        if (groupSettingsForm.value.image) {
+          payload.append('image', groupSettingsForm.value.image)
+        }
+
+        await allService.updateGroup(editingGroupForSettings.value.id, payload)
+        await loadGroups()
+
+        const updated = groups.value.find((item) => sameUserId(item.id, editingGroupForSettings.value.id))
+        if (updated) {
+          editingGroupForSettings.value = updated
+
+          if (selectedUser.value && sameUserId(selectedUser.value.id, updated.id)) {
+            selectedUser.value = { ...selectedUser.value, ...updated, type: 'group' }
+          }
+        }
+      } catch (error) {
+        groupFormError.value = error?.response?.data?.message || error?.message || 'Unable to save group settings.'
+      } finally {
+        groupFormSubmitting.value = false
+      }
     }
 
     const openGroupDetails = async (group) => {
@@ -2111,6 +2377,14 @@ export default {
       const hasAttachment = Boolean(attachment?.file)
       const effectiveText = text || (hasAttachment ? (attachment?.name || 'Attachment') : '')
 
+      const attachmentValidation = hasAttachment ? validateAttachmentFile(attachment.file) : { valid: true }
+      if (hasAttachment && !attachmentValidation.valid) {
+        attachmentValidationError.value = attachmentValidation.message
+        clearSelectedAttachment()
+        message.value = text
+        return
+      }
+
       if (!text && !hasAttachment) {
         message.value = ''
         return
@@ -2142,6 +2416,7 @@ export default {
 
       registerPendingOutgoingMessage(optimisticMessage)
       chat.value.messages.push(optimisticMessage)
+      scheduleScrollToBottom()
       message.value = ''
 
       try {
@@ -2181,6 +2456,7 @@ export default {
         }
 
         chat.value.messages = chat.value.messages.map((item) => (item.id === optimisticMessage.id ? finalMessage : item))
+        scheduleScrollToBottom()
 
         const index = groups.value.findIndex((item) => sameUserId(item.id, group.id))
         if (index !== -1) {
@@ -2203,52 +2479,65 @@ export default {
     }
 
     const sendMessage = async () => {
-      if (!selectedUser.value) {
+      if (!selectedUser.value || isSendingMessage.value) {
         return
       }
 
-      if (isGroupConversation(selectedUser.value)) {
-        await sendGroupMessage()
-        return
-      }
-
-      const text = message.value.trim()
-      const attachment = selectedAttachment.value
-      const hasAttachment = Boolean(attachment?.file)
-      const effectiveText = text || (hasAttachment ? (attachment?.name || 'Attachment') : '')
-
-      if (!text && !hasAttachment) {
-        message.value = ''
-        return
-      }
-
-      const optimisticAttachment = hasAttachment
-        ? {
-            url: attachment.previewUrl || '',
-            name: attachment.name,
-            mimeType: attachment.mimeType,
-            kind: attachment.kind,
-            size: attachment.size,
-          }
-        : null
-
-      const optimisticMessage = normalizeMessagePayload(
-        {
-          id: `tmp-${Date.now()}-${Math.random().toString(36).slice(2)}`,
-          from_id: currentUserId.value,
-          to_id: selectedUser.value.id,
-          body: effectiveText,
-          created_at: new Date().toISOString(),
-          attachment: optimisticAttachment,
-        },
-        { _optimistic: true, attachment: optimisticAttachment }
-      )
-
-      registerPendingOutgoingMessage(optimisticMessage)
-      chat.value.messages.push(optimisticMessage)
-      message.value = ''
+      isSendingMessage.value = true
+      let text = ''
+      let optimisticMessage = null
 
       try {
+        if (isGroupConversation(selectedUser.value)) {
+          await sendGroupMessage()
+          return
+        }
+
+        text = message.value.trim()
+        const attachment = selectedAttachment.value
+        const hasAttachment = Boolean(attachment?.file)
+        const effectiveText = text || (hasAttachment ? (attachment?.name || 'Attachment') : '')
+
+        if (!text && !hasAttachment) {
+          message.value = ''
+          return
+        }
+
+        const attachmentValidation = hasAttachment ? validateAttachmentFile(attachment.file) : { valid: true }
+        if (hasAttachment && !attachmentValidation.valid) {
+          attachmentValidationError.value = attachmentValidation.message
+          clearSelectedAttachment()
+          message.value = text
+          return
+        }
+
+        const optimisticAttachment = hasAttachment
+          ? {
+              url: attachment.previewUrl || '',
+              name: attachment.name,
+              mimeType: attachment.mimeType,
+              kind: attachment.kind,
+              size: attachment.size,
+            }
+          : null
+
+        optimisticMessage = normalizeMessagePayload(
+          {
+            id: `tmp-${Date.now()}-${Math.random().toString(36).slice(2)}`,
+            from_id: currentUserId.value,
+            to_id: selectedUser.value.id,
+            body: effectiveText,
+            created_at: new Date().toISOString(),
+            attachment: optimisticAttachment,
+          },
+          { _optimistic: true, attachment: optimisticAttachment }
+        )
+
+        registerPendingOutgoingMessage(optimisticMessage)
+        chat.value.messages.push(optimisticMessage)
+        scheduleScrollToBottom()
+        message.value = ''
+
         const payload = hasAttachment
           ? (() => {
               const formData = new FormData()
@@ -2279,14 +2568,19 @@ export default {
               }
             : item
         )
+        scheduleScrollToBottom()
 
         rememberChattedUser(selectedUser.value.id)
         clearSelectedAttachment()
       } catch (error) {
-        clearPendingOutgoingMessage(optimisticMessage)
-        chat.value.messages = chat.value.messages.filter((item) => item.id !== optimisticMessage.id)
+        if (optimisticMessage) {
+          clearPendingOutgoingMessage(optimisticMessage)
+          chat.value.messages = chat.value.messages.filter((item) => item.id !== optimisticMessage.id)
+        }
         message.value = text
         console.error('Send failed:', error?.response?.data || error?.message || error)
+      } finally {
+        isSendingMessage.value = false
       }
     }
 
@@ -2320,11 +2614,17 @@ export default {
         }
       }
 
-      const privateChannel = echo.private(userChannel)
-      ;['.chat.message', 'chat.message', '.message.sent', 'message.sent', 'MessageSent', '.MessageSent', '.my-event', 'my-event']
-        .forEach((eventName) => privateChannel.listen(eventName, handleRealtimeEvent))
+      const bindEvents = (channel) => {
+        ;['.chat.message', 'chat.message', '.message.sent', 'message.sent', 'MessageSent', '.MessageSent', '.my-event', 'my-event']
+          .forEach((eventName) => channel.listen(eventName, handleRealtimeEvent))
 
-      privateChannel.error((err) => console.error('Echo private error:', err))
+        channel.error((err) => console.error('Echo channel error:', err))
+      }
+
+      bindEvents(echo.private(userChannel))
+
+      // Some deployments accidentally broadcast on public channels; listen there too as a compatibility fallback.
+      bindEvents(echo.channel(userChannel))
     }
 
     const loadCallHistoryForUser = async (targetUserId) => {
@@ -2346,6 +2646,10 @@ export default {
     const startCall = async (toId) => {
       partnerId.value = toId || null
       console.warn('Call start placeholder: verify backend call signaling endpoints.')
+    }
+
+    const startVideoCall = async (toId) => {
+      await startCall(toId)
     }
 
     const endCurrentCall = async () => {
@@ -2406,6 +2710,7 @@ export default {
       await loadGroupMessages(selectedUser.value.id)
       subscribeToGroupRealtimeMessages(selectedUser.value.id)
       selectedCallHistory.value = []
+      scheduleScrollToBottom();
 
       if (isMobileView.value) {
         activeMobilePane.value = 'chat'
@@ -2511,6 +2816,12 @@ export default {
       isUserDetailsLoading.value = false
     }
 
+    const logoutAndRedirect = () => {
+      store.dispatch('logout')
+      showHeaderMenu.value = false
+      router.push('/')
+    }
+
 
     const searchUser = async () => {
       if (searchDebounceTimer.value) {
@@ -2564,6 +2875,7 @@ export default {
           chat.value.messages = normalizedMessages.filter((item) =>
             isMessageBetweenUsers(item, currentUserId.value, userId)
           );
+          scheduleScrollToBottom();
 
           if (chat.value.messages.length > 0) {
             rememberChattedUser(userId)
@@ -2571,6 +2883,7 @@ export default {
         } else {
           console.warn("No messages found.");
           chat.value.messages = [];
+          scheduleScrollToBottom();
         }
       } catch (error) {
         console.error("Error fetching messages:", error);
@@ -2584,6 +2897,12 @@ export default {
         }, 50);
       }
     };
+
+    const scheduleScrollToBottom = () => {
+      setTimeout(() => {
+        scrollToBottom()
+      }, 0)
+    }
 
     const formatMessageDate = (createdAt) => {
       if (!createdAt) return '';
@@ -2835,18 +3154,26 @@ export default {
         return ''
       }
 
-      if (rawUrl.startsWith('http://') || rawUrl.startsWith('https://') || rawUrl.startsWith('blob:') || rawUrl.startsWith('data:')) {
-        return rawUrl
+      const normalizeUrl = (value) => {
+        try {
+          return new URL(value).toString()
+        } catch {
+          return encodeURI(value)
+        }
       }
 
-      const baseUrl = (process.env.VUE_APP_API_BASE_URL || 'http://127.0.0.1:8000').replace(/\/$/, '')
+      if (rawUrl.startsWith('http://') || rawUrl.startsWith('https://') || rawUrl.startsWith('blob:') || rawUrl.startsWith('data:')) {
+        return normalizeUrl(rawUrl)
+      }
+
+      const baseUrl = getApiOrigin().replace(/\/$/, '')
       const normalizedPath = rawUrl.replace(/^\/+/, '')
 
       if (normalizedPath.startsWith('storage/')) {
-        return `${baseUrl}/${normalizedPath}`
+        return normalizeUrl(`${baseUrl}/${normalizedPath}`)
       }
 
-      return `${baseUrl}/storage/${normalizedPath}`
+      return normalizeUrl(`${baseUrl}/storage/${normalizedPath}`)
     }
 
     const getAttachmentFilename = (attachment) => {
@@ -2889,17 +3216,54 @@ export default {
       return false
     }
 
+    const isImageAttachment = (attachment, mimeType = '') => {
+      const kind = (attachment?.kind || '').toString().toLowerCase()
+      const normalizedMimeType = (mimeType || attachment?.mimeType || '').toString().toLowerCase()
+      const fileUrl = resolveAttachmentUrl(attachment).toLowerCase()
+
+      return kind === 'image' || normalizedMimeType.startsWith('image/') || /\.(png|jpe?g|gif|webp|bmp|svg)(\?|#|$)/.test(fileUrl)
+    }
+
     const fetchAttachmentBlob = async (attachment) => {
       const fileUrl = resolveAttachmentUrl(attachment)
       if (!fileUrl) {
         return null
       }
 
-      const response = await allService.http.get(fileUrl, { responseType: 'blob' })
-      const blob = response?.data instanceof Blob
-        ? response.data
-        : new Blob([response?.data], { type: attachment?.mimeType || 'application/octet-stream' })
-      const dispositionName = getFilenameFromDisposition(response?.headers?.['content-disposition'])
+      const response = await fetch(fileUrl, { method: 'GET', mode: 'cors' })
+      if (!response.ok) {
+        throw new Error(`Attachment fetch failed with status ${response.status}`)
+      }
+
+      const blob = await response.blob()
+      const dispositionName = getFilenameFromDisposition(response.headers.get('content-disposition') || '')
+
+      return {
+        blob,
+        fileUrl,
+        mimeType: (blob.type || attachment?.mimeType || '').toString(),
+        filename: dispositionName || getAttachmentFilename(attachment),
+      }
+    }
+
+    const fetchAttachmentBlobViaFetch = async (attachment) => {
+      const fileUrl = resolveAttachmentUrl(attachment)
+      if (!fileUrl) {
+        return null
+      }
+
+      const token = localStorage.getItem('token') || ''
+      const response = await fetch(fileUrl, {
+        method: 'GET',
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      })
+
+      if (!response.ok) {
+        throw new Error(`Fetch failed with status ${response.status}`)
+      }
+
+      const blob = await response.blob()
+      const dispositionName = getFilenameFromDisposition(response.headers.get('content-disposition') || '')
 
       return {
         blob,
@@ -2948,12 +3312,16 @@ export default {
       showImagePreview.value = false
       imagePreviewUrl.value = ''
       imagePreviewName.value = ''
+      previewAttachmentKind.value = 'image'
+      previewAttachment.value = null
     }
 
-    const openImagePreview = (url, name = '') => {
+    const openImagePreview = (url, name = '', attachment = null, kind = 'image') => {
       closeImagePreview()
       imagePreviewUrl.value = url
       imagePreviewName.value = name
+      previewAttachmentKind.value = kind
+      previewAttachment.value = attachment
       showImagePreview.value = true
     }
 
@@ -2998,10 +3366,17 @@ export default {
           return
         }
 
-        const isImage = (payload.mimeType || '').toLowerCase().startsWith('image/') || attachment?.kind === 'image'
+        const isImage = isImageAttachment(attachment, payload.mimeType)
         if (isImage) {
           const previewUrl = URL.createObjectURL(payload.blob)
-          openImagePreview(previewUrl, payload.filename)
+          openImagePreview(previewUrl, payload.filename, attachment, 'image')
+          return
+        }
+
+        const isVideo = (attachment?.kind || '').toLowerCase() === 'video' || payload.mimeType.startsWith('video/')
+        if (isVideo) {
+          const previewUrl = URL.createObjectURL(payload.blob)
+          openImagePreview(previewUrl, payload.filename, attachment, 'video')
           return
         }
 
@@ -3022,6 +3397,16 @@ export default {
         setTimeout(() => URL.revokeObjectURL(previewUrl), 60000)
       } catch (error) {
         console.error('View attachment failed:', error)
+        if (isImageAttachment(attachment)) {
+          openImagePreview(fileUrl, getAttachmentFilename(attachment), attachment, 'image')
+          return
+        }
+
+        if ((attachment?.kind || '').toLowerCase() === 'video') {
+          openImagePreview(fileUrl, getAttachmentFilename(attachment), attachment, 'video')
+          return
+        }
+
         window.open(fileUrl, '_blank', 'noopener,noreferrer')
       }
     }
@@ -3042,20 +3427,32 @@ export default {
 
         triggerBlobDownload(payload.blob, payload.filename || fallbackFilename)
       } catch (error) {
-        console.error('Download attachment failed:', error)
+        console.error('Download attachment failed (axios):', error)
+
+        try {
+          const payload = await fetchAttachmentBlobViaFetch(attachment)
+          if (payload) {
+            triggerBlobDownload(payload.blob, payload.filename || fallbackFilename)
+            return
+          }
+        } catch (fetchError) {
+          console.error('Download attachment failed (fetch):', fetchError)
+        }
+
         const link = document.createElement('a')
-        link.href = fileUrl
+        const forcedDownloadUrl = fileUrl + (fileUrl.includes('?') ? '&' : '?') + 'download=1'
+        link.href = forcedDownloadUrl
         link.download = fallbackFilename
         link.rel = 'noopener'
+        link.target = '_blank'
         document.body.appendChild(link)
         link.click()
         document.body.removeChild(link)
+
+        // Final fallback for strict cross-origin responses where `download` is ignored.
+        window.open(forcedDownloadUrl, '_blank', 'noopener,noreferrer')
       }
     }
-
-    const mapRealtimeMessage = (event) => {
-      return normalizeMessagePayload(event);
-    };
 
     const pendingOutgoingMessageCounts = new Map();
 
@@ -3073,7 +3470,7 @@ export default {
       const attachment = getMessageAttachment(message);
       const attachmentKind = attachment?.kind ?? message?.attachment_kind ?? '';
       const attachmentName = attachment?.name ?? message?.attachment_name ?? '';
-      const attachmentUrl = attachment?.url ?? message?.attachment_url ?? '';
+      const attachmentSize = attachment?.size ?? message?.attachment_size ?? '';
       const isGroupMessage = isGroupConversation(message) || Boolean(message?.group_id);
       const destination = isGroupMessage
         ? `group:${String(message?.group_id ?? '')}`
@@ -3086,7 +3483,7 @@ export default {
         String((message?.body || '').trim()),
         String(attachmentKind),
         String(attachmentName),
-        String(attachmentUrl),
+        String(attachmentSize),
       ].join('|');
     };
 
@@ -3226,6 +3623,7 @@ export default {
 
         if (optimisticIndex !== -1) {
           chat.value.messages.splice(optimisticIndex, 1, incoming)
+          scheduleScrollToBottom()
         }
 
         return
@@ -3242,6 +3640,7 @@ export default {
 
       if (optimisticIndex !== -1) {
         chat.value.messages.splice(optimisticIndex, 1, incoming);
+        scheduleScrollToBottom()
         return;
       }
 
@@ -3251,6 +3650,7 @@ export default {
 
       if (!alreadyExists) {
         chat.value.messages.push(incoming);
+        scheduleScrollToBottom()
       }
     };
 
@@ -3282,7 +3682,13 @@ export default {
           conversation_type: 'group',
         })
 
-        if (!sameUserId(incoming.group_id, groupId) && !sameUserId(incoming.to_id, groupId)) {
+        const sameGroupMessage =
+          sameUserId(incoming.group_id, groupId) ||
+          sameUserId(incoming.to_id, groupId) ||
+          sameUserId(incoming.groupId, groupId) ||
+          incoming.conversation_type === 'group'
+
+        if (!sameGroupMessage) {
           return
         }
 
@@ -3304,13 +3710,17 @@ export default {
           activeChannelNames.value.push(channelName)
         }
 
-        const privateChannel = echo.private(channelName)
-        ;['.chat.message', 'chat.message', '.group.message', 'group.message', '.group.message.sent', 'group.message.sent', '.message.sent', 'message.sent', '.my-event', 'my-event']
-          .forEach((eventName) => {
-            privateChannel.listen(eventName, handleGroupRealtimeEvent)
-          })
+        const bindEvents = (channel) => {
+          ;['.chat.message', 'chat.message', '.group.message', 'group.message', '.group.message.sent', 'group.message.sent', '.message.sent', 'message.sent', '.my-event', 'my-event']
+            .forEach((eventName) => {
+              channel.listen(eventName, handleGroupRealtimeEvent)
+            })
 
-        privateChannel.error(err => console.error('Echo group private error:', err))
+          channel.error(err => console.error('Echo group channel error:', err))
+        }
+
+        bindEvents(echo.private(channelName))
+        bindEvents(echo.channel(channelName))
       })
     }
 
@@ -3382,9 +3792,16 @@ export default {
 
     })
 
-    watch(() => chat.value.messages.length, () => {
-      scrollToBottom();
-    });
+    watch(
+      () => [
+        selectedUser.value?.id || '',
+        selectedUser.value?.type || '',
+        chat.value.messages.map((msg) => String(msg?.id || msg?.created_at || msg?.body || '')).join('|'),
+      ],
+      () => {
+        scheduleScrollToBottom()
+      }
+    )
 
     onBeforeUnmount(() => {
       activeChannelNames.value.forEach((channelName) => echo.leave(channelName));
@@ -3445,6 +3862,8 @@ export default {
       isInitialLoading,
       showGroupManager,
       showGroupSettings,
+      groupSettingsForm,
+      groupSettingsPreviewUrl,
       editingGroupForSettings,
       showAddMemberForm,
       newGroupMembers,
@@ -3465,10 +3884,14 @@ export default {
       showImagePreview,
       imagePreviewUrl,
       imagePreviewName,
+      previewAttachmentKind,
+      previewAttachment,
       isUserDetailsLoading,
       userDetails,
       userDetailsError,
       showEmojiPicker,
+      attachmentValidationError,
+      isSendingMessage,
       emojiList,
       currentDate,
       filteredUsers,
@@ -3482,6 +3905,7 @@ export default {
       goBackToUsers,
       clearSearch,
       openSettings,
+      logoutAndRedirect,
       toggleMenu,
       closeSettings,
       updateProfile,
@@ -3501,6 +3925,7 @@ export default {
       openGroupSettingsFromDetails,
       userId,
       startCall,
+      startVideoCall,
       endCurrentCall,
       openGroupManager,
       closeGroupManager,
@@ -3510,10 +3935,15 @@ export default {
       removeMemberFromGroup,
       deleteGroup,
       saveGroup,
+      saveGroupSettings,
+      handleGroupImageUpload,
       formatGroupPreview,
       formatMessageDate,
       formatProfileDate,
       getUserPresenceText,
+      mutualGroupsWithSelectedUser,
+      sameCountryMembers,
+      memberLocationLabel,
       selectedCallHistory,
       formatCallHistoryItem,
       formatCallHistoryTitle,
@@ -3542,6 +3972,7 @@ export default {
       getMessageSenderName,
       getMessageReceiverName,
       canDownloadAttachment,
+      resolveAttachmentUrl,
       closeImagePreview,
       viewAttachment,
       downloadAttachment,

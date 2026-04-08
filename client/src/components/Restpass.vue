@@ -60,6 +60,9 @@
 
     import { toast } from "vue3-toastify";
     import axios from "axios";
+    import { getApiOrigin } from "@/services/api-origin";
+
+    const API_ORIGIN = getApiOrigin();
 
     export default {
       data() {
@@ -81,7 +84,7 @@
 
       methods: {
         onSubmit() {
-          axios.post("http://localhost:8000/api/resetPassword", this.userData)
+          axios.post(`${API_ORIGIN}/api/resetPassword`, this.userData)
               .then(() => {
                 toast("Done! Now login with new password", {
                   autoClose: 1000,

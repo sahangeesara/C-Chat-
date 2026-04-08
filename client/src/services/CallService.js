@@ -1,7 +1,8 @@
 import axios from 'axios'
 import store from '@/store'
+import { getApiBaseUrl } from '@/services/api-origin'
 
-const API_BASE_URL = 'http://localhost:8000/api'
+const API_BASE_URL = getApiBaseUrl()
 
 class CallService {
     constructor() {
@@ -14,8 +15,13 @@ class CallService {
 
         // 🔐 Attach JWT token
         this.http.interceptors.request.use(config => {
-            if (!config.url.includes('broadcasting/auth')) {
-                const token = store.getters['auth/getToken']
+            const requestUrl = String(config?.url || '')
+            if (!requestUrl.includes('broadcasting/auth')) {
+                const token =
+                    store.getters['auth/getToken'] ||
+                    store.getters['tokens/getToken'] ||
+                    store.getters.getToken ||
+                    localStorage.getItem('token')
                 if (token) {
                     config.headers.Authorization = `Bearer ${token}`
                 }
@@ -23,7 +29,37 @@ class CallService {
             return config
         })
 
+        this.http.interceptors.response.use(
+            response => response,
+            error => {
+                if (error?.response?.status === 401) {
+                    store.dispatch('logout')
+                }
+
+                return Promise.reject(error)
+            }
+        )
+
         this.callHistoryStorageKey = 'chatapp.callHistory'
+    }
+
+    async postFirstAvailable(endpoints, payload) {
+        let lastError = null
+
+        for (const endpoint of endpoints) {
+            try {
+                const response = await this.http.post(endpoint, payload)
+                return response.data
+            } catch (error) {
+                lastError = error
+                const status = error?.response?.status
+                if (status !== 404 && status !== 405) {
+                    break
+                }
+            }
+        }
+
+        throw lastError
     }
 
     readLocalCallHistory() {
@@ -46,23 +82,25 @@ class CallService {
 
     // 📞 Start call (send offer)
     startCall(toId, offer) {
-        return this.http.post('/call/start', {
+        return this.postFirstAvailable(['/call/start', '/calls/start'], {
             to_id: toId,
             offer: offer,
+            sdp: offer,
         })
     }
 
     // ✅ Answer call
     answerCall(toId, answer) {
-        return this.http.post('/call/answer', {
+        return this.postFirstAvailable(['/call/answer', '/calls/answer'], {
             to_id: toId,
             sdp: answer,
+            answer,
         })
     }
 
     // ❄ Send ICE candidate
     sendIce(toId, candidate) {
-        return this.http.post('/call/ice', {
+        return this.postFirstAvailable(['/call/ice', '/calls/ice'], {
             to_id: toId,
             candidate: candidate,
         })
@@ -70,7 +108,7 @@ class CallService {
 
     // ❌ End call (optional)
     endCall(toId) {
-        return this.http.post('/call/end', {
+        return this.postFirstAvailable(['/call/end', '/calls/end'], {
             to_id: toId,
         })
     }

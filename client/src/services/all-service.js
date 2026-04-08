@@ -1,9 +1,8 @@
 import axios from 'axios';
 import store from '@/store';
+import { getApiBaseUrl } from '@/services/api-origin';
 
-const API_BASE_URL = process.env.VUE_APP_API_BASE_URL
-    ? `${process.env.VUE_APP_API_BASE_URL.replace(/\/$/, '')}/api`
-    : 'http://127.0.0.1:8000/api';
+const API_BASE_URL = getApiBaseUrl();
 
 export default class AllServiceService {
     constructor() {
@@ -15,7 +14,8 @@ export default class AllServiceService {
         });
 
         this.http.interceptors.request.use((config) => {
-            if (config.url.includes('broadcasting/auth')) {
+            const requestUrl = String(config?.url || '');
+            if (requestUrl.includes('broadcasting/auth')) {
                 return config;
             }
 
@@ -27,6 +27,7 @@ export default class AllServiceService {
 
             const token =
                 store.getters['auth/getToken'] ||
+                store.getters['tokens/getToken'] ||
                 store.getters.getToken ||
                 localStorage.getItem('token');
 
@@ -40,6 +41,17 @@ export default class AllServiceService {
         this.http.interceptors.response.use(
             (response) => response,
             (error) => {
+                if (!error?.response) {
+                    console.error('Network error while calling API:', {
+                        method: (error?.config?.method || 'get').toUpperCase(),
+                        url: error?.config?.baseURL
+                            ? `${String(error.config.baseURL).replace(/\/$/, '')}/${String(error?.config?.url || '').replace(/^\//, '')}`
+                            : error?.config?.url,
+                        online: typeof navigator !== 'undefined' ? navigator.onLine : true,
+                        message: error?.message || 'Network Error',
+                    });
+                }
+
                 if (error?.response?.status === 401) {
                     store.dispatch('auth/logout');
                     if (window.location.hash !== '#/') {
@@ -67,6 +79,53 @@ export default class AllServiceService {
         if (!formData.has(key)) {
             formData.append(key, value);
         }
+    }
+
+    isNetworkError(error) {
+        // Axios network errors usually have no response object.
+        return Boolean(error && !error.response);
+    }
+
+    getAuthToken() {
+        return (
+            store.getters['auth/getToken'] ||
+            store.getters['tokens/getToken'] ||
+            store.getters.getToken ||
+            localStorage.getItem('token') ||
+            null
+        );
+    }
+
+    async postFormDataWithFetch(endpoint, formData) {
+        const token = this.getAuthToken();
+        const baseUrl = (this.http?.defaults?.baseURL || '').replace(/\/$/, '');
+        const normalizedEndpoint = endpoint.startsWith('/') ? endpoint : `/${endpoint}`;
+        const url = `${baseUrl}${normalizedEndpoint}`;
+
+        const response = await fetch(url, {
+            method: 'POST',
+            headers: {
+                ...(token ? { Authorization: `Bearer ${token}` } : {}),
+                Accept: 'application/json',
+            },
+            body: this.cloneFormData(formData),
+        });
+
+        const text = await response.text();
+        let parsed;
+        try {
+            parsed = text ? JSON.parse(text) : {};
+        } catch {
+            parsed = { message: text || 'Unexpected response format' };
+        }
+
+        if (!response.ok) {
+            const error = new Error(parsed?.message || `Request failed with status ${response.status}`);
+            error.response = { status: response.status, data: parsed };
+            throw error;
+        }
+
+        return parsed;
     }
 
     normalizeSendFormData(source, { includeGroup = false } = {}) {
@@ -101,6 +160,51 @@ export default class AllServiceService {
         }
 
         return normalized;
+    }
+
+    buildMessageFormData(value, { includeGroup = false } = {}) {
+        if (typeof FormData !== 'undefined' && value instanceof FormData) {
+            return this.normalizeSendFormData(value, { includeGroup });
+        }
+
+        const formData = new FormData();
+        const toId = value?.user_id ?? value?.to_id ?? value?.receiver_id ?? null;
+        const groupId = value?.group_id ?? null;
+        const text = (value?.message ?? value?.body ?? value?.text ?? '').toString();
+
+        if (toId !== null && toId !== undefined && toId !== '') {
+            formData.append('user_id', String(toId));
+            formData.append('to_id', String(toId));
+            formData.append('receiver_id', String(toId));
+        }
+
+        if (includeGroup && groupId !== null && groupId !== undefined && groupId !== '') {
+            formData.append('group_id', String(groupId));
+            formData.append('conversation_type', 'group');
+        }
+
+        formData.append('message', text);
+        formData.append('body', text);
+
+        if (value?.group_name) {
+            formData.append('group_name', String(value.group_name));
+        }
+
+        const attachmentFile = value?.attachment || value?.file || value?.media || value?.document || null;
+        if (attachmentFile) {
+            formData.append('attachment', attachmentFile);
+            formData.append('file', attachmentFile);
+            formData.append('media', attachmentFile);
+            formData.append('document', attachmentFile);
+        }
+
+        ['attachment_name', 'attachment_mime_type', 'attachment_kind', 'attachment_size'].forEach((key) => {
+            if (value?.[key] !== undefined && value?.[key] !== null && value?.[key] !== '') {
+                formData.append(key, String(value[key]));
+            }
+        });
+
+        return formData;
     }
 
     async searchUser(query, page = 1) {
@@ -238,108 +342,34 @@ export default class AllServiceService {
     }
 
     async sendMessages(value) {
-        if (typeof FormData !== 'undefined' && value instanceof FormData) {
-            const payload = this.normalizeSendFormData(value, { includeGroup: false });
-            const payloadVariants = [
-                payload,
-                (() => {
-                    const variant = this.cloneFormData(payload);
-                    this.appendIfMissing(variant, '_method', 'POST');
-                    return variant;
-                })(),
-            ];
-            const endpoints = ['/send', '/messages', '/chat/send'];
+        const payload = this.buildMessageFormData(value, { includeGroup: false });
+        const endpoints = ['/send', '/messages', '/chat/send'];
+        let lastError = null;
 
-            let lastError = null;
+        for (const endpoint of endpoints) {
+            try {
+                const response = await this.http.post(endpoint, this.cloneFormData(payload));
+                return response.data;
+            } catch (error) {
+                lastError = error;
 
-            for (const endpoint of endpoints) {
-                for (const variant of payloadVariants) {
+                if (this.isNetworkError(error)) {
                     try {
-                        const response = await this.http.post(endpoint, this.cloneFormData(variant));
-                        return response.data;
-                    } catch (error) {
-                        lastError = error;
-                        const status = error?.response?.status;
-                        if (status !== 404 && status !== 405 && status !== 422) {
-                            break;
-                        }
+                        return await this.postFormDataWithFetch(endpoint, payload);
+                    } catch (fetchError) {
+                        lastError = fetchError;
                     }
                 }
 
-                if (lastError?.response?.status !== 404 && lastError?.response?.status !== 405) {
+                const status = lastError?.response?.status;
+                if (status !== 404 && status !== 405 && status !== 422) {
                     break;
                 }
             }
-
-            console.error('Error sending message:', lastError?.response?.data || lastError?.message);
-            throw lastError;
         }
 
-        const toId = value?.user_id ?? value?.to_id ?? value?.receiver_id ?? null;
-        const text = (value?.message ?? value?.body ?? value?.text ?? '').toString().trim();
-        const passthroughFields = {};
-        [
-            'group_id',
-            'group_name',
-            'conversation_type',
-            'attachment_url',
-            'attachment_name',
-            'attachment_mime_type',
-            'attachment_kind',
-            'attachment_size',
-        ].forEach((key) => {
-            if (value?.[key] !== undefined && value?.[key] !== null && value?.[key] !== '') {
-                passthroughFields[key] = value[key];
-            }
-        });
-
-        const payloadAttempts = [];
-
-        if (value && typeof value === 'object') {
-            payloadAttempts.push(value);
-        }
-
-        if (toId && text) {
-            payloadAttempts.push({ ...passthroughFields, user_id: toId, message: text });
-            payloadAttempts.push({ ...passthroughFields, to_id: toId, message: text });
-            payloadAttempts.push({ ...passthroughFields, user_id: toId, body: text });
-            payloadAttempts.push({ ...passthroughFields, to_id: toId, body: text });
-        }
-
-        const seen = new Set();
-        const uniqueAttempts = payloadAttempts.filter((payload) => {
-            const key = JSON.stringify(payload);
-            if (seen.has(key)) {
-                return false;
-            }
-            seen.add(key);
-            return true;
-        });
-
-        let lastError = null;
-
-        try {
-            for (const payload of uniqueAttempts) {
-                try {
-                    const response = await this.http.post('/send', payload);
-                    return response.data;
-                } catch (error) {
-                    lastError = error;
-                    const status = error?.response?.status;
-                    // Do not retry 500 responses to avoid duplicate DB inserts.
-                    const shouldRetry = status === 422;
-
-                    if (!shouldRetry) {
-                        throw error;
-                    }
-                }
-            }
-
-            throw lastError || new Error('Unable to send message with available payload formats.');
-        } catch (error) {
-            console.error('Error sending message:', error.response?.data || error.message);
-            throw error;
-        }
+        console.error('Error sending message:', lastError?.response?.data || lastError?.message);
+        throw lastError;
     }
 
     async updateProfile(formData) {
@@ -437,48 +467,55 @@ export default class AllServiceService {
     }
 
     async sendGroupMessage(groupId, payload) {
-        const normalizedPayload = typeof FormData !== 'undefined' && payload instanceof FormData
-            ? this.normalizeSendFormData(payload, { includeGroup: true })
-            : payload;
+        let seedPayload = payload || {};
+        if (typeof FormData !== 'undefined' && payload instanceof FormData) {
+            seedPayload = this.cloneFormData(payload);
+            this.appendIfMissing(seedPayload, 'group_id', String(groupId));
+            this.appendIfMissing(seedPayload, 'conversation_type', 'group');
+        } else {
+            seedPayload = {
+                ...seedPayload,
+                group_id: groupId,
+                conversation_type: seedPayload?.conversation_type || 'group',
+            };
+        }
 
-        const attempts = [
-            {
-                endpoint: `/groups/${groupId}/messages`,
-                payload: normalizedPayload,
-            },
-            {
-                endpoint: `/group/${groupId}/messages`,
-                payload: normalizedPayload,
-            },
-            {
-                endpoint: '/send',
-                payload: normalizedPayload,
-            },
-            {
-                endpoint: '/messages',
-                payload: normalizedPayload,
-            },
+        const payloadWithGroup = this.buildMessageFormData(seedPayload, { includeGroup: true });
+        const endpoints = [
+            `/groups/${groupId}/messages`,
+            `/group/${groupId}/messages`,
+            '/send',
+            '/messages',
         ];
 
         let lastError = null;
 
-        for (const attempt of attempts) {
+        for (const endpoint of endpoints) {
             try {
-                const attemptPayload = (typeof FormData !== 'undefined' && attempt.payload instanceof FormData)
-                    ? this.cloneFormData(attempt.payload)
-                    : attempt.payload;
-                const response = await this.http.post(attempt.endpoint, attemptPayload);
+                const response = await this.http.post(endpoint, this.cloneFormData(payloadWithGroup));
                 return response.data;
             } catch (error) {
                 lastError = error;
-                const status = error?.response?.status;
+
+                if (this.isNetworkError(error)) {
+                    try {
+                        return await this.postFormDataWithFetch(endpoint, payloadWithGroup);
+                    } catch (fetchError) {
+                        lastError = fetchError;
+                    }
+                }
+
+                const status = lastError?.response?.status;
                 if (status !== 404 && status !== 405 && status !== 422) {
                     break;
                 }
             }
         }
 
-        console.error('Error sending group message:', lastError?.response?.data || lastError?.message);
+        console.error('Error sending group message:', {
+            groupId,
+            detail: lastError?.response?.data || lastError?.message,
+        });
         throw lastError;
     }
 
@@ -528,13 +565,40 @@ export default class AllServiceService {
     }
 
     async updateGroup(groupId, payload) {
-        try {
-            const response = await this.http.put(`/groups/${groupId}`, payload);
-            return response.data;
-        } catch (error) {
-            console.error('Error updating group:', error.response?.data || error.message);
-            throw error;
+        const endpoints = [`/groups/${groupId}`, `/group/${groupId}`];
+        const isForm = typeof FormData !== 'undefined' && payload instanceof FormData;
+        let lastError = null;
+
+        for (const endpoint of endpoints) {
+            try {
+                if (isForm) {
+                    const formPayload = this.cloneFormData(payload);
+                    this.appendIfMissing(formPayload, '_method', 'PUT');
+
+                    const imageFile = formPayload.get('image') || formPayload.get('group_image') || formPayload.get('avatar');
+                    if (imageFile) {
+                        this.appendIfMissing(formPayload, 'image', imageFile);
+                        this.appendIfMissing(formPayload, 'group_image', imageFile);
+                        this.appendIfMissing(formPayload, 'avatar', imageFile);
+                    }
+
+                    const response = await this.http.post(endpoint, formPayload);
+                    return response.data;
+                }
+
+                const response = await this.http.put(endpoint, payload);
+                return response.data;
+            } catch (error) {
+                lastError = error;
+                const status = error?.response?.status;
+                if (status !== 404 && status !== 405) {
+                    break;
+                }
+            }
         }
+
+        console.error('Error updating group:', lastError?.response?.data || lastError?.message);
+        throw lastError;
     }
 
     async addGroupMembers(groupId, userIds) {

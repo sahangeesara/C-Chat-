@@ -16,36 +16,66 @@ window.axios.defaults.headers.common['X-Requested-With'] = 'XMLHttpRequest';
  */
 
 import Echo from 'laravel-echo';
-
 import Pusher from 'pusher-js';
+
 window.Pusher = Pusher;
 
-const token =
+const getAccessToken = () =>
     localStorage.getItem('access_token') ||
     localStorage.getItem('token') ||
     null;
 
-const scheme = import.meta.env.VITE_PUSHER_SCHEME || window.location.protocol.replace(':', '') || 'http';
+const apiBaseUrl =
+    import.meta.env.VITE_API_BASE_URL ||
+    import.meta.env.VUE_APP_API_BASE_URL ||
+    `${window.location.protocol}//${window.location.hostname}:8000`;
+
+const normalizedApiBase = apiBaseUrl.replace(/\/$/, '');
+const scheme = (import.meta.env.VITE_PUSHER_SCHEME || window.location.protocol.replace(':', '') || 'http').toLowerCase();
 const host = import.meta.env.VITE_PUSHER_HOST || window.location.hostname;
 const port = Number(import.meta.env.VITE_PUSHER_PORT || 6001);
 const isSecure = scheme === 'https';
 
 window.Echo = new Echo({
     broadcaster: 'pusher',
-    key:
-        import.meta.env.VITE_PUSHER_APP_KEY ||
-        import.meta.env.VUE_APP_PUSHER_APP_KEY ||
-        null,
-    cluster: import.meta.env.VITE_PUSHER_APP_CLUSTER ?? 'mt1',
+    key: import.meta.env.VITE_PUSHER_APP_KEY || import.meta.env.VUE_APP_PUSHER_APP_KEY || null,
+    cluster: import.meta.env.VITE_PUSHER_APP_CLUSTER || undefined,
     wsHost: host,
     wsPort: port,
     wssPort: port,
     forceTLS: isSecure,
     enabledTransports: isSecure ? ['wss'] : ['ws'],
     disableStats: true,
-    authEndpoint: `${window.location.origin}/api/broadcasting/auth`,
+    authEndpoint: `${normalizedApiBase}/api/broadcasting/auth`,
     auth: {
-        headers: token ? { Authorization: `Bearer ${token}` } : {},
+        headers: {},
     },
-    withCredentials: true,
+    withCredentials: false,
+    authorizer: (channel, options) => ({
+        authorize: (socketId, callback) => {
+            const token = getAccessToken();
+
+            if (!token) {
+                callback(true, { message: 'Missing access token for channel authorization.' });
+                return;
+            }
+
+            axios
+                .post(
+                    `${normalizedApiBase}/api/broadcasting/auth`,
+                    {
+                        socket_id: socketId,
+                        channel_name: channel.name,
+                    },
+                    {
+                        headers: {
+                            Authorization: `Bearer ${token}`,
+                            'X-Requested-With': 'XMLHttpRequest',
+                        },
+                    }
+                )
+                .then((response) => callback(false, response.data))
+                .catch((error) => callback(true, error));
+        },
+    }),
 });

@@ -12,6 +12,8 @@ use Illuminate\Queue\SerializesModels;
 
 class IncomingCall implements ShouldBroadcastNow
 {
+    use Dispatchable, InteractsWithSockets, SerializesModels;
+
     public $fromId;
     public $toId;
     public $offer;
@@ -25,13 +27,26 @@ class IncomingCall implements ShouldBroadcastNow
         $this->callId = $callId;
     }
 
-    public function broadcastOn()
+    public function broadcastOn(): PrivateChannel
     {
         return new PrivateChannel('call.' . $this->toId);
     }
 
-    public function broadcastAs()
+    public function broadcastAs(): string
     {
         return 'incoming.call';
+    }
+
+    public function broadcastWith(): array
+    {
+        return [
+            'from_id' => $this->fromId,
+            'to_id' => $this->toId,
+            'fromId' => $this->fromId,
+            'toId' => $this->toId,
+            'offer' => $this->offer,
+            'call_id' => $this->callId,
+            'callId' => $this->callId,
+        ];
     }
 }

@@ -33,6 +33,9 @@
     <script>
 import axios from "axios";
 import { toast } from "vue3-toastify";
+import { getApiOrigin } from "@/services/api-origin";
+
+const API_ORIGIN = getApiOrigin();
 
 
 export default {
@@ -50,7 +53,7 @@ export default {
         autoClose: 1000,
         position: toast.POSITION.BOTTOM_RIGHT,
       });
-      axios.post("http://localhost:8000/api/sendPasswordResetLink", this.userData)
+      axios.post(`${API_ORIGIN}/api/sendPasswordResetLink`, this.userData)
       .then((response) => {
           this.handleResponse(response.data);
         })

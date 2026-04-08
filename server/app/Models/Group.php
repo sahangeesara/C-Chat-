@@ -16,7 +16,13 @@ class Group extends Model
 
     protected $fillable = [
         'name',
+        'description',
+        'profile_image_path',
         'created_by',
+    ];
+
+    protected $appends = [
+        'profile_image_url',
     ];
 
     public function creator(): BelongsTo
@@ -34,6 +40,13 @@ class Group extends Model
     public function memberships(): HasMany
     {
         return $this->hasMany(GroupMember::class);
+    }
+
+    public function getProfileImageUrlAttribute(): ?string
+    {
+        return $this->profile_image_path
+            ? asset('storage/' . ltrim($this->profile_image_path, '/'))
+            : null;
     }
 }
 

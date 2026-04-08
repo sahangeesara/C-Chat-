@@ -30,9 +30,31 @@ Broadcast::channel('call.{userId}', function ($user, $userId) {
 });
 
 Broadcast::channel('group.{groupId}', function ($user, $groupId) {
+    $normalizedGroupId = is_numeric($groupId)
+        ? (int) $groupId
+        : ((preg_match('/^group-(\d+)$/', (string) $groupId, $matches) === 1) ? (int) $matches[1] : 0);
+
+    if ($normalizedGroupId <= 0) {
+        return false;
+    }
+
     return GroupMember::query()
-        ->where('group_id', (int) $groupId)
+        ->where('group_id', $normalizedGroupId)
         ->where('user_id', (int) $user->id)
         ->exists();
 });
 
+Broadcast::channel('group-call.{groupId}', function ($user, $groupId) {
+    $normalizedGroupId = is_numeric($groupId)
+        ? (int) $groupId
+        : ((preg_match('/^group-(\d+)$/', (string) $groupId, $matches) === 1) ? (int) $matches[1] : 0);
+
+    if ($normalizedGroupId <= 0) {
+        return false;
+    }
+
+    return GroupMember::query()
+        ->where('group_id', $normalizedGroupId)
+        ->where('user_id', (int) $user->id)
+        ->exists();
+});
