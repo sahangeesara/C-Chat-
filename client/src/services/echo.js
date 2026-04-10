@@ -5,7 +5,7 @@ import { getApiOrigin } from '@/services/api-origin'
 
 window.Pusher = Pusher
 
-const wsPort = Number(process.env.VUE_APP_WEBSOCKETS_PORT || 6001)
+const wsPort = Number(process.env.VUE_APP_WEBSOCKETS_PORT || 8000)
 const apiBaseUrl = getApiOrigin()
 const wsScheme = (process.env.VUE_APP_WEBSOCKETS_SCHEME || 'http').toLowerCase()
 const useTls = wsScheme === 'https' || wsScheme === 'wss'
@@ -89,6 +89,7 @@ if (isHttpsPage && !useTls) {
                     store.getters['tokens/getToken'] ||
                     store.getters.getToken ||
                     localStorage.getItem('token')
+                console.log('Authorizing with token:', token) // Debug log
 
                 if (!token) {
                     callback(new Error('Missing auth token for private channel subscription'))

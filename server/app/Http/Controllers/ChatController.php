@@ -344,3 +344,7 @@ class ChatController extends Controller
         return null;
     }
 }
+
+// Change WebSocket port for broadcasting events (GroupChatEvent, ChatEvent) to 8001
+// This is not handled in this controller, but in broadcasting config and frontend
+// Add a comment to remind to update config/broadcasting.php and frontend Echo/Pusher config

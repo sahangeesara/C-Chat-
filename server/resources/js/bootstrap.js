@@ -28,12 +28,12 @@ const getAccessToken = () =>
 const apiBaseUrl =
     import.meta.env.VITE_API_BASE_URL ||
     import.meta.env.VUE_APP_API_BASE_URL ||
-    `${window.location.protocol}//${window.location.hostname}:8000`;
+    `${window.location.protocol}//${window.location.hostname}:8001`;
 
 const normalizedApiBase = apiBaseUrl.replace(/\/$/, '');
 const scheme = (import.meta.env.VITE_PUSHER_SCHEME || window.location.protocol.replace(':', '') || 'http').toLowerCase();
 const host = import.meta.env.VITE_PUSHER_HOST || window.location.hostname;
-const port = Number(import.meta.env.VITE_PUSHER_PORT || 6001);
+const port = Number(import.meta.env.VITE_PUSHER_PORT || 8001);
 const isSecure = scheme === 'https';
 
 window.Echo = new Echo({

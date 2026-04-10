@@ -418,7 +418,7 @@ export default {
     const isCurrentUserMessage = (msg) => sameUserId(msg?.from_id, currentUserId.value);
 
     const initializePusher = () => {
-      const apiOrigin = (process.env.VUE_APP_API_BASE_URL || `${window.location.protocol}//${window.location.hostname}:8000`).replace(/\/$/, '')
+      const apiOrigin = (process.env.VUE_APP_API_BASE_URL || `${window.location.protocol}//${window.location.hostname}:8001`).replace(/\/$/, '')
       Pusher.logToConsole = true;
       const pusherInstance = new Pusher('d48f36eb19647382a1d0', {
         cluster: 'ap2',

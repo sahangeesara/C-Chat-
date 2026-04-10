@@ -69,3 +69,9 @@ export const getApiOrigin = () => {
 
 export const getApiBaseUrl = () => `${trimTrailingSlash(getApiOrigin())}/api`
 
+// Utility: Clear manual API origin override in localStorage (for debugging)
+export const clearApiOriginOverride = () => {
+  if (typeof localStorage !== 'undefined') {
+    localStorage.removeItem('chatapp.api_origin');
+  }
+}

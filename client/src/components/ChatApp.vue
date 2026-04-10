@@ -1418,9 +1418,9 @@ export default {
       try {
         console.log(`[Weather] Fetching for coords: ${latitude}, ${longitude}`)
 
-        // Use external Open-Meteo API directly (CORS enabled)
-        const weatherUrl = `https://api.open-meteo.com/v1/forecast?latitude=${latitude}&longitude=${longitude}&current=temperature_2m,weather_code&timezone=auto`
-        const locationUrl = `https://geocoding-api.open-meteo.com/v1/reverse?latitude=${latitude}&longitude=${longitude}&language=en&format=json`
+        // Use proxy endpoints to avoid CORS issues
+        const weatherUrl = `/api/weather?latitude=${latitude}&longitude=${longitude}&current=temperature_2m,weather_code&timezone=auto`
+        const locationUrl = `/api/location?latitude=${latitude}&longitude=${longitude}&language=en&format=json`
 
         // Fetch with timeout
         const fetchWithTimeout = (url, timeoutMs = 8000) => {
@@ -1454,7 +1454,7 @@ export default {
         }
 
         // Process location - display city and country if available
-        const place = locationData?.results?.[0]
+        const place = locationData?.location
         if (place && (place.city || place.name || place.country)) {
           const city = place.city || place.name || ''
           const country = place.country || ''
