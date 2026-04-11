@@ -634,6 +634,18 @@
       <div v-if="showOutgoingCallModal" class="settings-overlay" @click.self="endCurrentCall">
         <div class="settings-card incoming-call-card">
           <div class="text-center">
+            <div class="incoming-call-photo mb-3">
+              <img
+                v-if="getUserPhoto(selectedUser)"
+                :src="getUserPhoto(selectedUser)"
+                class="rounded-circle"
+                style="width: 120px; height: 120px; object-fit: cover; border: 4px solid #b9d8ff;"
+                alt="Receiver"
+              >
+              <div v-else class="rounded-circle bg-secondary d-flex align-items-center justify-content-center" style="width: 120px; height: 120px; margin: 0 auto; border: 4px solid #b9d8ff;">
+                <span class="text-white" style="font-size: 2rem;">{{ (outgoingCallDisplayName || '?').charAt(0).toUpperCase() }}</span>
+              </div>
+            </div>
             <div class="incoming-call-icon mb-2">
               <i class="bi bi-telephone-outbound-fill"></i>
             </div>
@@ -653,9 +665,37 @@
         </div>
       </div>
 
-      <audio ref="remoteAudio" autoplay playsinline style="display: none;"></audio>
+      <!-- In-Call Modal Overlay -->
+      <div v-if="showActiveCallModal" class="settings-overlay" @click.self="endCurrentCall">
+        <div class="settings-card incoming-call-card">
+          <div class="text-center">
+            <div class="incoming-call-icon mb-2">
+              <i class="bi bi-telephone-inbound-fill"></i>
+            </div>
+            <h5 class="mb-1">In Call</h5>
+            <p class="text-muted mb-3">{{ outgoingCallDisplayName || incomingCallDisplayName }}</p>
+            <div class="d-flex gap-2 justify-content-center">
+              <button
+                type="button"
+                class="btn btn-danger"
+                :disabled="isCallActionPending"
+                @click="endCurrentCall"
+              >
+                End Call
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <audio ref="remoteAudio" autoplay style="display: none;"></audio>
       <video ref="remoteVideo" autoplay playsinline style="display: none;"></video>
       <video ref="localVideo" autoplay muted playsinline style="display: none;"></video>
+      <audio ref="ringtoneAudio" src="/sounds/ringtone.mp3" preload="auto" style="display:none" @error="onRingtoneAudioError"></audio>
+            function onRingtoneAudioError(e) {
+              console.error('Ringtone audio source not supported or missing:', e)
+              // Optionally, show a user notification or fallback
+            }
     </div>
     </div>
 
@@ -910,10 +950,12 @@ export default {
     const remoteAudio = ref(null)
     const remoteVideo = ref(null)
     const localVideo = ref(null)
+    const ringtoneAudio = ref(null)
     const callStartedAt = ref(null)
     const selectedCallHistory = ref([])
     const showIncomingCallModal = ref(false)
     const showOutgoingCallModal = ref(false)
+    const showActiveCallModal = ref(false)
     const incomingCall = ref(null)
     const outgoingCall = ref(null)
     const isCallActionPending = ref(false)
@@ -2867,7 +2909,8 @@ export default {
       }
     }
 
-    const handleCallIncomingSignal = async (payload = {}) => {
+    // Patch handleCallIncomingSignal to play ringtone
+    const originalHandleCallIncomingSignal = async (payload = {}) => {
       const fromId = readSignalUserId(payload, ['from_id', 'fromId', 'user_id', 'sender_id', 'caller_id', 'peer_id'])
       const offer = readSignalDescription(payload, 'offer')
       if (!fromId || !offer) {
@@ -2890,6 +2933,10 @@ export default {
           rejectIncomingCall('missed')
         }
       }, 30000)
+    }
+    const handleCallIncomingSignal = async (payload = {}) => {
+      playRingtone()
+      await originalHandleCallIncomingSignal(payload)
     }
 
     const handleCallAnsweredSignal = async (payload = {}) => {
@@ -2968,9 +3015,11 @@ export default {
       clearCallSessionState()
       teardownPeerConnection()
       pendingIceCandidates.value = []
+      showActiveCallModal.value = false
     }
 
-    const startCall = async (toId, options = {}) => {
+    // Patch startCall to play/stop ringtone
+    const originalStartCall = async (toId, options = {}) => {
       if (!toId) {
         return
       }
@@ -3021,12 +3070,23 @@ export default {
         isCallActionPending.value = false
       }
     }
+    const startCall = async (toId, options = {}) => {
+      isCallActionPending.value = true
+      playRingtone()
+      try {
+        await originalStartCall(toId, options)
+      } finally {
+        isCallActionPending.value = false
+        stopRingtone()
+      }
+    }
 
     const startVideoCall = async (toId) => {
       await startCall(toId, { callType: 'video' })
     }
 
-    const endCurrentCall = async () => {
+    // Patch endCurrentCall to stop ringtone and close all modals
+    const originalEndCurrentCall = async () => {
       const activeId = partnerId.value || outgoingCall.value?.toId || incomingCall.value?.fromId || incomingCall.value?.from_id
       const direction = outgoingCall.value ? 'outgoing' : 'incoming'
 
@@ -3048,11 +3108,29 @@ export default {
         clearCallSessionState()
         teardownPeerConnection()
         pendingIceCandidates.value = []
+        showActiveCallModal.value = false
         isCallActionPending.value = false
       }
     }
+    const endCurrentCall = async () => {
+      isCallActionPending.value = true
+      stopRingtone()
+      try {
+        await originalEndCurrentCall()
+      } finally {
+        clearCallSessionState()
+        teardownPeerConnection()
+        pendingIceCandidates.value = []
+        showActiveCallModal.value = false
+        showOutgoingCallModal.value = false
+        showIncomingCallModal.value = false
+        isCallActionPending.value = false
+        stopRingtone()
+      }
+    }
 
-    const rejectIncomingCall = async (reason = 'rejected') => {
+    // Patch rejectIncomingCall to stop ringtone
+    const originalRejectIncomingCall = async (reason = 'rejected') => {
       const fromId = incomingCall.value?.fromId || incomingCall.value?.from_id || partnerId.value
 
       isCallActionPending.value = true
@@ -3076,8 +3154,13 @@ export default {
         isCallActionPending.value = false
       }
     }
+    const rejectIncomingCall = async (reason = 'rejected') => {
+      stopRingtone()
+      await originalRejectIncomingCall(reason)
+    }
 
-    const acceptIncomingCall = async () => {
+    // Patch acceptIncomingCall to stop ringtone
+    const originalAcceptIncomingCall = async () => {
       const callPayload = incomingCall.value
       const fromId = callPayload?.fromId || callPayload?.from_id
       const offer = callPayload?.offer || readSignalDescription(callPayload, 'offer')
@@ -3121,12 +3204,17 @@ export default {
         }
         clearIncomingCallState()
         showOutgoingCallModal.value = false
+        showActiveCallModal.value = true
       } catch (error) {
         console.error('Unable to accept incoming call:', error?.response?.data || error?.message || error)
         await rejectIncomingCall('failed')
       } finally {
         isCallActionPending.value = false
       }
+    }
+    const acceptIncomingCall = async () => {
+      stopRingtone()
+      await originalAcceptIncomingCall()
     }
 
     const subscribeToCallEvents = (authUserId) => {
@@ -4345,6 +4433,26 @@ export default {
       pendingIceCandidates.value = []
     });
 
+    function playRingtone() {
+      if (ringtoneAudio.value) {
+        ringtoneAudio.value.currentTime = 0;
+        ringtoneAudio.value.loop = true;
+        ringtoneAudio.value.play();
+      }
+    }
+
+    function stopRingtone() {
+      if (ringtoneAudio.value) {
+        ringtoneAudio.value.pause();
+        ringtoneAudio.value.currentTime = 0;
+      }
+    }
+
+    function onRingtoneAudioError(e) {
+      console.error('Ringtone audio source not supported or missing:', e)
+      // Optionally, show a user notification or fallback
+    }
+
     return {
       chatContainer,
       message,
@@ -4372,6 +4480,7 @@ export default {
       activeCallHistoryItem,
       showIncomingCallModal,
       showOutgoingCallModal,
+      showActiveCallModal,
       isInitialLoading,
       showGroupManager,
       showGroupSettings,
@@ -4402,6 +4511,7 @@ export default {
       remoteAudio,
       remoteVideo,
       localVideo,
+      ringtoneAudio,
       isUserDetailsLoading,
       userDetails,
       userDetailsError,
@@ -4494,7 +4604,8 @@ export default {
       downloadAttachment,
       isGroupConversation,
       partnerId,
-      sameUserId
+      sameUserId,
+      onRingtoneAudioError
     };
   }
 };

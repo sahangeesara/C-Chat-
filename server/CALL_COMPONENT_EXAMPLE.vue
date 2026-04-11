@@ -82,6 +82,15 @@ const showCallHistory = ref(false);
 const currentUserId = ref(null);
 const currentCallId = ref(null);
 
+// Outgoing call state
+const outgoingCall = ref(false);
+const outgoingCallData = reactive({
+  toId: null,
+  receiverName: '',
+  receiverPhoto: '',
+  callType: 'audio',
+});
+
 const incomingCallData = reactive({
   fromId: null,
   callId: null,
@@ -97,6 +106,59 @@ const callHistory = ref([]);
 let peerConnection = null;
 let localStream = null;
 let callDurationTimer = null;
+
+// Start a call (sender side)
+const startCall = async (toId, callType = 'audio') => {
+  try {
+    outgoingCall.value = true;
+    outgoingCallData.toId = toId;
+    outgoingCallData.callType = callType;
+
+    // Fetch receiver details
+    const receiverDetails = await allService.getUser(toId);
+    outgoingCallData.receiverName = receiverDetails.name;
+    outgoingCallData.receiverPhoto = receiverDetails.profile_photo_url;
+
+    // Play ringtone sound for sender
+    playRingtone();
+
+    // Initiate call via backend
+    const offer = await createOffer(callType);
+    const response = await CallService.startCall(toId, offer);
+    currentCallId.value = response.call_id;
+    callStatus.value = 'ringing';
+    activeCall.value = true;
+  } catch (error) {
+    console.error('❌ Failed to start call:', error);
+    outgoingCall.value = false;
+    stopRingtone();
+  }
+};
+
+// Helper to create WebRTC offer
+const createOffer = async (callType = 'audio') => {
+  const constraints = {
+    audio: true,
+    video: callType === 'video',
+  };
+  localStream = await navigator.mediaDevices.getUserMedia(constraints);
+  peerConnection = new RTCPeerConnection({
+    iceServers: [
+      { urls: ['stun:stun.l.google.com:19302', 'stun:stun1.l.google.com:19302'] }
+    ]
+  });
+  localStream.getTracks().forEach(track => {
+    peerConnection.addTrack(track, localStream);
+  });
+  peerConnection.onicecandidate = (event) => {
+    if (event.candidate) {
+      CallService.sendIce(outgoingCallData.toId, event.candidate, currentCallId.value);
+    }
+  };
+  const offer = await peerConnection.createOffer();
+  await peerConnection.setLocalDescription(offer);
+  return offer.sdp;
+};
 
 // ============================================================================
 // INCOMING CALL HANDLING

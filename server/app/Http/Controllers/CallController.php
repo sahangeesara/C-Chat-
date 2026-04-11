@@ -263,6 +263,24 @@ class CallController extends Controller
         $call->ended_at = now();
         $call->save();
 
+        // Only broadcast to the other user if the receiver ends the call
+        $currentUserId = auth()->id();
+        $isCaller = $currentUserId === $call->caller_id;
+        $isCallee = $currentUserId === $call->callee_id;
+        $otherUserId = $isCaller ? $call->callee_id : $call->caller_id;
+
+        // If the callee (receiver) ends the call, notify the caller
+        if ($isCallee) {
+            broadcast(new \App\Events\CallEnded(
+                $currentUserId,
+                $otherUserId,
+                $call->id,
+                $call->status,
+                $call->end_reason
+            ))->toOthers();
+        }
+        // If the caller ends the call, do not broadcast to the receiver
+
         return response()->json([
             'status' => 'ended',
             'call' => $call,
