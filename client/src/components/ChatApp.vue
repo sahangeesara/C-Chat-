@@ -3363,9 +3363,10 @@ export default {
 
         if (messages.length > 0) {
           const normalizedMessages = messages.map((item) => normalizeMessagePayload(item));
-          chat.value.messages = normalizedMessages.filter((item) =>
+          let filtered = normalizedMessages.filter((item) =>
             isMessageBetweenUsers(item, currentUserId.value, userId)
           );
+          chat.value.messages = dedupeMessages(filtered);
           scheduleScrollToBottom();
 
           if (chat.value.messages.length > 0) {
@@ -3587,6 +3588,23 @@ export default {
 
       return firstToSecond || secondToFirst;
     };
+
+    // Utility: Deduplicate messages by id or signature
+    function dedupeMessages(messages) {
+      const unique = [];
+      const seenIds = new Set();
+      const seenSignatures = new Set();
+      messages.forEach((item) => {
+        const idKey = item?.id ? String(item.id) : null;
+        if (idKey && seenIds.has(idKey)) return;
+        if (idKey) seenIds.add(idKey);
+        const sig = [String(item?.from_id||''), String(item?.to_id||item?.group_id||''), String(item?.body||''), String(item?.created_at||'')].join('|');
+        if (seenSignatures.has(sig)) return;
+        seenSignatures.add(sig);
+        unique.push(item);
+      });
+      return unique;
+    }
 
     const isCurrentUserMessage = (msg) => sameUserId(msg?.from_id, currentUserId.value);
 
@@ -4114,6 +4132,7 @@ export default {
 
         if (optimisticIndex !== -1) {
           chat.value.messages.splice(optimisticIndex, 1, incoming)
+          chat.value.messages = dedupeMessages(chat.value.messages);
           scheduleScrollToBottom()
         }
 
@@ -4131,6 +4150,7 @@ export default {
 
       if (optimisticIndex !== -1) {
         chat.value.messages.splice(optimisticIndex, 1, incoming);
+        chat.value.messages = dedupeMessages(chat.value.messages);
         scheduleScrollToBottom()
         return;
       }
@@ -4141,6 +4161,7 @@ export default {
 
       if (!alreadyExists) {
         chat.value.messages.push(incoming);
+        chat.value.messages = dedupeMessages(chat.value.messages);
         scheduleScrollToBottom()
       }
     };
